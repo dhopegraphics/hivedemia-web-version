@@ -1,19 +1,19 @@
+import { useCompetitionStore } from "@/backend/store/useCompetitionStore";
+import { useUserStore } from "@/backend/store/useUserStore";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  FlatList,
-} from "react-native";
-import { useState, useEffect } from "react";
-import {
-  MaterialCommunityIcons,
   FontAwesome5,
   Ionicons,
+  MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useUserStore } from "@/backend/store/useUserStore";
-import { useCompetitionStore } from "@/backend/store/useCompetitionStore";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const OngoingCompetitions = ({ isDark, colors }) => {
   const { profile: user } = useUserStore();
@@ -117,10 +117,7 @@ const OngoingCompetitions = ({ isDark, colors }) => {
         className="mb-4 rounded-xl overflow-hidden"
         style={{
           backgroundColor: isDark ? `${colors.dark}90` : colors.white,
-          shadowColor: colors.dark,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
+         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           elevation: 2,
         }}
       >

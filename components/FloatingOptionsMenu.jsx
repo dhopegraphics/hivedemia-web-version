@@ -99,10 +99,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
     elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+   boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   },
   option: {
     padding: 10,

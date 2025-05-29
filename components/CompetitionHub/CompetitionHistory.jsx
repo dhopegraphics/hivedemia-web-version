@@ -199,10 +199,7 @@ const CompetitionHistory = ({ isDark }) => {
         className="mb-4 rounded-xl overflow-hidden"
         style={{
           backgroundColor: isDark ? `${colors.dark}90` : colors.white,
-          shadowColor: colors.dark,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           elevation: 2,
         }}
         onPress={handlePress}

@@ -2,7 +2,6 @@ import Guidelines from "@/components/NotesUploads/Guidelines";
 import UploadButton from "@/components/NotesUploads/UploadButton";
 import { colors } from "@/constants/Colors";
 import { allowedExtensions } from "@/utils/AllowedExtensions";
-import { getPdfPageCount } from "@/utils/getPdfPageCount";
 import { getMimeTypeFromName } from "@/utils/NotesUtils";
 import { PublicFileOperations } from "@/utils/PublicFileOperations";
 import {
@@ -97,7 +96,7 @@ const NoteUpload = () => {
 
       let pageCount = "Unknown";
       if (mimeType === "application/pdf") {
-        pageCount = await getPdfPageCount(file.uri);
+      
       }
 
       // Store the entire file object

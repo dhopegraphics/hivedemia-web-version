@@ -8,7 +8,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { Camera, CameraView } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { Stack } from "expo-router";
-import LottieView from "lottie-react-native";
 import { useColorScheme } from "nativewind";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -375,12 +374,7 @@ Do not include any text outside the JSON object.
               >
                 {loading ? (
                   <View className="items-center flex-row justify-center">
-                    <LottieView
-                      source={require("@/assets/lottie/typing-dots.json")}
-                      autoPlay
-                      loop
-                      style={{ width: 40, height: 40 }}
-                    />
+                   
                     <Text
                       className="font-JakartaBold text-base"
                       style={{ color: colors.dark }}

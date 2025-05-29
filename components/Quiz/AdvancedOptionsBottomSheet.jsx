@@ -2,12 +2,10 @@ import { colors } from "@/constants/Colors";
 import { samplePrompts } from "@/data/prefined_mcqs_prompts";
 import { Ionicons } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
-import LottieView from "lottie-react-native";
 import { useColorScheme } from "nativewind";
 import { useState } from "react";
 import {
   Keyboard,
-  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -124,15 +122,7 @@ const AdvancedOptionsBottomSheet = ({
 
             {isGenerating ? (
               <View className="items-center  flex-row justify-center py-4 mb-4">
-                { Platform.OS !== 'web' && (
-                  
-                <LottieView
-                  source={require("@/assets/lottie/typing-dots.json")}
-                  autoPlay
-                  loop
-                  style={{ width: 40, height: 40 }}
-                />
-                )}
+                
 
                 <Text
                   className="font-JakartaBold text-lg"

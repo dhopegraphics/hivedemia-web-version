@@ -1,14 +1,14 @@
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Linking,
-  StyleSheet,
-} from "react-native";
-import { MaterialIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
-import { useColorScheme } from "nativewind";
 import { colors } from "@/constants/Colors";
+import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useColorScheme } from "nativewind";
+import {
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const AboutScreen = () => {
   const { colorScheme } = useColorScheme();
@@ -346,10 +346,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginHorizontal: 16,
     marginBottom: 16,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+   boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
     elevation: 2,
   },
   sectionTitle: {

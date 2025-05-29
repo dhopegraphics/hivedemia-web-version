@@ -1,5 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { Image, Platform, View } from "react-native";
+import { Image, View } from "react-native";
 import { GiftedChat, Time } from "react-native-gifted-chat";
 import InputToolbar from "./InputToolbar";
 import MessageBubble from "./MessageBubble";
@@ -48,10 +48,6 @@ const ChatMessages = ({
   };
 
 
-let LottieView = null;
-if (Platform.OS !== 'web') {
-  LottieView = require('lottie-react-native').default;
-}
 
 
   const renderFooter = () => (
@@ -65,12 +61,7 @@ if (Platform.OS !== 'web') {
             paddingVertical: 8,
           }}
         >
-          <LottieView
-            source={require("@/assets/lottie/typing-dots.json")}
-            autoPlay
-            loop
-            style={{ width: 40, height: 40 }}
-          />
+        
         </View>
       )}
       {messages.length > 0 && messages[0].quickReplies && (

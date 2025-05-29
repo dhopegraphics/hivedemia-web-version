@@ -189,7 +189,8 @@ Now, answer the user's follow-up question below, using the above as context.
                   : [styles.aiMessage, { backgroundColor: colors.background }],
                 {
                   borderColor: colors.border,
-                  shadowColor: isDark ? "#000000" : "#E5E7EB",
+
+                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                 },
               ]}
             >
