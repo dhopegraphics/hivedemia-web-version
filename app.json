@@ -1,22 +1,30 @@
 {
   "expo": {
-    "name": "hivedemia-web-version",
-    "slug": "hivedemia-web-version",
+    "name": "Hivedemia",
+    "slug": "Hivedemia",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "hivedemiawebversion",
+    "scheme": "hivedemia",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dhopegraphics.Hivedemia",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.dhopegraphics.Hivedemia",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/adaptive-icon-android.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -33,10 +41,36 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SnapAndSolve to use your camera"
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-web-browser",
+     [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow $(Hivedemia) to access your microphone."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "e7b60132-fc06-4d07-9378-3bb865cf4a59"
+      }
+    },
+    "owner": "dhopegraphics"
   }
 }
