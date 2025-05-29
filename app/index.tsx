@@ -1,8 +1,8 @@
+import { initSupabaseSession } from "@/backend/services/initSupabaseSession";
+import { useAuthStore } from "@/backend/store/authStore";
 import { Redirect } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { initSupabaseSession } from "../backend/services/initSupabaseSession";
-import { useAuthStore } from "../backend/store/authStore";
 
 
 export default function Index() {

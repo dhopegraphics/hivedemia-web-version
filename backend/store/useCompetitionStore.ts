@@ -1,8 +1,7 @@
-import { create } from "zustand";
 import { supabase } from "@/backend/supabase";
 import { sendMessageToCohere } from "@/hooks/cohereApi";
-import { Competition , CompetitionState  } from "../../constants/CompetitionTypes";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from "zustand";
+import { Competition, CompetitionState } from "../../constants/CompetitionTypes";
 
 function sanitizeJsonString(str: string): string {
   // Remove any unexpected characters before/after JSON

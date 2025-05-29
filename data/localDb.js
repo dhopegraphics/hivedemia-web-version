@@ -1,18 +1,18 @@
 import * as SQLite from 'expo-sqlite';
 
-export const coursesDb = SQLite.openDatabaseSync('courses.db');
+export const coursesDb = SQLite.openDatabaseAsync('courses.db');
 
-export const notesTakenDb = SQLite.openDatabaseSync('notes.db');
+export const notesTakenDb = SQLite.openDatabaseAsync('notes.db');
 
-export const plannerDb = SQLite.openDatabaseSync('planner.db');
+export const plannerDb = SQLite.openDatabaseAsync('planner.db');
 
-export const smartHiveDb = SQLite.openDatabaseSync('smartHiveChat.db');
+export const smartHiveDb = SQLite.openDatabaseAsync('smartHiveChat.db');
 
-export const smartHiveSnapToSolveDb = SQLite.openDatabaseSync('smartHiveSnapToSolve.db');
-export const groupsDb = SQLite.openDatabaseSync('groups.db');
+export const smartHiveSnapToSolveDb = SQLite.openDatabaseAsync('smartHiveSnapToSolve.db');
+export const groupsDb = SQLite.openDatabaseAsync('groups.db');
 
-export const quizzesDb = SQLite.openDatabaseSync('quizzes.db');
+export const quizzesDb = SQLite.openDatabaseAsync('quizzes.db');
 
-export const examsDb = SQLite.openDatabaseSync('examsHub.db');
+export const examsDb = SQLite.openDatabaseAsync('examsHub.db');
 
-export const competitionsDb = SQLite.openDatabaseSync('competition.db');
+export const competitionsDb = SQLite.openDatabaseAsync('competition.db');
