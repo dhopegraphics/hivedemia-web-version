@@ -18,7 +18,7 @@ from app.database.database import engine, Base
 app = FastAPI(
     title="HIVEBACKIT API",
     version="1.0.0",
-    description="Backend API for HIVEBACKIT – an AI-powered educational platform.",
+    description="Backend API for HIVE – an AI-powered educational platform.",
 )
 
 # CORS setup
