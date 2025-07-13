@@ -16,9 +16,9 @@ from app.api import (
 from app.database.database import engine, Base
 
 app = FastAPI(
-    title="HIVEBACKIT API",
+    title="HIVEDEMIA API",
     version="1.0.0",
-    description="Backend API for HIVE – an AI-powered educational platform.",
+    description="Backend API for HIVEDEMIA – an AI-powered educational platform.",
 )
 
 # CORS setup
@@ -42,7 +42,7 @@ app.include_router(answer.router)
 # Health check
 @app.get("/")
 async def root():
-    return {"message": "Welcome to HIVEBACKIT API "}
+    return {"message": "Welcome to HIVEDEMIA API "}
 
 # Startup event: create all tables
 @app.on_event("startup")

@@ -1,6 +1,6 @@
-# 🧠 HIVEBACKIT – Educational Platform Backend
+# 🧠 HIVEDEMIA – Educational Platform Backend
 
-HIVEBACKIT is a FastAPI + PostgreSQL backend powering an AI-driven educational platform. Features include competitions, shared notes, topic extraction, notifications, and more.
+HIVEDEMIA is a FastAPI + PostgreSQL backend powering an AI-driven educational platform. Features include competitions, shared notes, topic extraction, notifications, and more.
 
 ---
 
@@ -17,7 +17,7 @@ HIVEBACKIT is a FastAPI + PostgreSQL backend powering an AI-driven educational p
 
 ## 📁 Project Structure
 
-HIVEBACKIT/
+backend/
 ├── app/
 │ ├── api/ # Route handlers
 │ ├── crud/ # DB interaction logic
@@ -37,8 +37,8 @@ HIVEBACKIT/
 ### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/yourusername/HIVEBACKIT.git
-cd HIVEBACKIT
+
+cd backend
 py -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
