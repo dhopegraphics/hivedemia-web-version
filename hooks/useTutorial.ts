@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 
 const TUTORIAL_KEYS = {
@@ -9,6 +8,25 @@ const TUTORIAL_KEYS = {
 
 type TutorialKey = keyof typeof TUTORIAL_KEYS;
 
+// Web storage utility
+const webStorage = {
+  getItem: (key: string): Promise<string | null> => {
+    try {
+      return Promise.resolve(localStorage.getItem(key));
+    } catch {
+      return Promise.resolve(null);
+    }
+  },
+  setItem: (key: string, value: string): Promise<void> => {
+    try {
+      localStorage.setItem(key, value);
+      return Promise.resolve();
+    } catch {
+      return Promise.resolve();
+    }
+  },
+};
+
 export const useTutorial = (tutorialKey: TutorialKey) => {
   const [shouldShowTutorial, setShouldShowTutorial] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,7 +34,7 @@ export const useTutorial = (tutorialKey: TutorialKey) => {
   const checkTutorialStatus = useCallback(async () => {
     try {
       const storageKey = TUTORIAL_KEYS[tutorialKey];
-      const completed = await AsyncStorage.getItem(storageKey);
+      const completed = await webStorage.getItem(storageKey);
       setShouldShowTutorial(!completed);
     } catch (error) {
       console.error("Error checking tutorial status:", error);
@@ -34,7 +52,7 @@ export const useTutorial = (tutorialKey: TutorialKey) => {
   const markTutorialAsCompleted = async () => {
     try {
       const storageKey = TUTORIAL_KEYS[tutorialKey];
-      await AsyncStorage.setItem(storageKey, "true");
+      await webStorage.setItem(storageKey, "true");
       setShouldShowTutorial(false);
     } catch (error) {
       console.error("Error marking tutorial as completed:", error);
@@ -44,7 +62,7 @@ export const useTutorial = (tutorialKey: TutorialKey) => {
   const resetTutorial = async () => {
     try {
       const storageKey = TUTORIAL_KEYS[tutorialKey];
-      await AsyncStorage.removeItem(storageKey);
+      await webStorage.setItem(storageKey, "");
       setShouldShowTutorial(true);
     } catch (error) {
       console.error("Error resetting tutorial:", error);

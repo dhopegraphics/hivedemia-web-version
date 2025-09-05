@@ -7,7 +7,7 @@ import { useAuthStore } from "@/backend/store/authStore";
 import { useUserStore } from "@/backend/store/useUserStore";
 import { useSubscription } from "@/context/useSubscriptionContext";
 import { useState } from "react";
-import { Alert } from "react-native";
+import { useToast } from "./use-toast";
 
 /**
  * Custom hook for managing enhanced authentication actions
@@ -18,6 +18,7 @@ export const useAuthActions = () => {
   const { profile } = useUserStore();
   const { clearUserData } = useSubscription();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const { toast } = useToast();
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   /**
@@ -44,27 +45,30 @@ export const useAuthActions = () => {
       );
 
       if (!result.success) {
-        Alert.alert(
-          "Sign Out Failed",
-          result.message ||
+        toast({
+          title: "Sign Out Failed",
+          description:
+            result.message ||
             "An error occurred during sign-out. Please try again.",
-          [{ text: "OK", style: "default" }]
-        );
+          variant: "destructive",
+        });
         return;
       }
 
       // Success feedback
-      Alert.alert(
-        "Signed Out Successfully",
-        "Thank you for your feedback. We hope to see you again soon!",
-        [{ text: "OK", style: "default" }]
-      );
+      toast({
+        title: "Signed Out Successfully",
+        description:
+          "Thank you for your feedback. We hope to see you again soon!",
+      });
       await clearUserData();
     } catch (error) {
       console.error("Enhanced sign-out error:", error);
-      Alert.alert("Error", "An unexpected error occurred. Please try again.", [
-        { text: "OK", style: "default" },
-      ]);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSigningOut(false);
     }
@@ -91,28 +95,30 @@ export const useAuthActions = () => {
       );
 
       if (!result.success) {
-        Alert.alert(
-          "Account Deletion Failed",
-          result.message || "Failed to delete account. Please try again.",
-          [{ text: "OK", style: "default" }]
-        );
+        toast({
+          title: "Account Deletion Failed",
+          description:
+            result.message || "Failed to delete account. Please try again.",
+          variant: "destructive",
+        });
         return;
       }
 
       // Success feedback
-      Alert.alert(
-        "Account Deleted",
-        "Your account has been permanently deleted. Thank you for using Hivedemia.",
-        [{ text: "OK", style: "default" }]
-      );
+      toast({
+        title: "Account Deleted",
+        description:
+          "Your account has been permanently deleted. Thank you for using Hivedemia.",
+      });
       await clearUserData();
     } catch (error) {
       console.error("Enhanced account deletion error:", error);
-      Alert.alert(
-        "Error",
-        "An unexpected error occurred during account deletion. Please try again.",
-        [{ text: "OK", style: "default" }]
-      );
+      toast({
+        title: "Error",
+        description:
+          "An unexpected error occurred during account deletion. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDeletingAccount(false);
     }
@@ -133,11 +139,12 @@ export const useAuthActions = () => {
       return true;
     } catch (error) {
       console.error("Auth actions validation error:", error);
-      Alert.alert(
-        "Validation Error",
-        "Unable to validate current session. Please sign in again.",
-        [{ text: "OK", style: "default" }]
-      );
+      toast({
+        title: "Validation Error",
+        description:
+          "Unable to validate current session. Please sign in again.",
+        variant: "destructive",
+      });
       return false;
     }
   };

@@ -1,5 +1,23 @@
 import { useCallback, useRef, useState } from "react";
-import { Animated } from "react-native";
+
+// Web-compatible animation utility
+const webAnimated = {
+  Value: class {
+    constructor(public value: number) {}
+    setValue(value: number) {
+      this.value = value;
+    }
+  },
+  timing: (value: any, config: any) => ({
+    start: (callback?: () => void) => {
+      // Simple web animation fallback
+      setTimeout(() => {
+        value.setValue(config.toValue);
+        callback?.();
+      }, config.duration || 250);
+    },
+  }),
+};
 
 export interface SelectionState {
   selectionMode: boolean;
@@ -17,7 +35,7 @@ export interface SelectionActions {
 export interface UseSelectionManagerReturn
   extends SelectionState,
     SelectionActions {
-  selectionBarAnim: Animated.Value;
+  selectionBarAnim: any; // Web animation value
 }
 
 /**
@@ -28,25 +46,29 @@ export const useSelectionManager = (): UseSelectionManagerReturn => {
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(
     new Set()
   );
-  const selectionBarAnim = useRef(new Animated.Value(-100)).current;
+  const selectionBarAnim = useRef(new webAnimated.Value(-100)).current;
 
   const enterSelectionMode = useCallback(() => {
     setSelectionMode(true);
-    Animated.timing(selectionBarAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    webAnimated
+      .timing(selectionBarAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      })
+      .start();
   }, [selectionBarAnim]);
 
   const exitSelectionMode = useCallback(() => {
     setSelectionMode(false);
     setSelectedCourses(new Set());
-    Animated.timing(selectionBarAnim, {
-      toValue: -100,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    webAnimated
+      .timing(selectionBarAnim, {
+        toValue: -100,
+        duration: 300,
+        useNativeDriver: true,
+      })
+      .start();
   }, [selectionBarAnim]);
 
   const toggleCourseSelection = useCallback(
@@ -62,11 +84,13 @@ export const useSelectionManager = (): UseSelectionManagerReturn => {
         // Auto-exit selection mode if no courses are selected
         if (newSelected.size === 0) {
           setSelectionMode(false);
-          Animated.timing(selectionBarAnim, {
-            toValue: -100,
-            duration: 300,
-            useNativeDriver: true,
-          }).start();
+          webAnimated
+            .timing(selectionBarAnim, {
+              toValue: -100,
+              duration: 300,
+              useNativeDriver: true,
+            })
+            .start();
         }
 
         return newSelected;

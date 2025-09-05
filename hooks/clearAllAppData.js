@@ -1,26 +1,37 @@
-// Clear all AsyncStorage, SecureStore, and SQLite databases
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import * as FileSystem from 'expo-file-system';
-
+// Clear all localStorage and sessionStorage for web
 export async function clearAllAppData() {
-  // 1. Clear AsyncStorage
-  await AsyncStorage.clear();
+  try {
+    // 1. Clear localStorage
+    if (typeof localStorage !== "undefined") {
+      localStorage.clear();
+    }
 
-  // 2. Clear all SecureStore keys
-  // SecureStore does not provide a method to list all keys, so you must know the keys used.
-  // If you know your keys, clear them like this:
-  const secureStoreKeys = ['session', 'onboardingComplete', /* add more keys here */];
-  await Promise.all(secureStoreKeys.map(key => SecureStore.deleteItemAsync(key)));
+    // 2. Clear sessionStorage
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.clear();
+    }
 
-  // 3. Delete all SQLite databases
-  // By default, SQLite DBs are stored in FileSystem.documentDirectory
-  const dbDir = FileSystem.documentDirectory || '';
-  const files = await FileSystem.readDirectoryAsync(dbDir);
-  const dbFiles = files.filter(f => f.endsWith('.db'));
-  await Promise.all(
-    dbFiles.map(f => FileSystem.deleteAsync(dbDir + f, { idempotent: true }))
-  );
+    // 3. Clear IndexedDB (for cached data)
+    if (typeof indexedDB !== "undefined") {
+      try {
+        const databases = await indexedDB.databases();
+        await Promise.all(
+          databases.map((db) => {
+            return new Promise((resolve, reject) => {
+              const deleteReq = indexedDB.deleteDatabase(db.name);
+              deleteReq.onsuccess = () => resolve();
+              deleteReq.onerror = () => reject(deleteReq.error);
+            });
+          })
+        );
+      } catch (error) {
+        console.warn("Failed to clear IndexedDB:", error);
+      }
+    }
 
-  console.log('All app data cleared!');
+    console.log("All app data cleared successfully");
+  } catch (error) {
+    console.error("Error clearing app data:", error);
+    throw error;
+  }
 }

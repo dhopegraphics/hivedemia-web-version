@@ -1,7 +1,7 @@
 import { useSubscription } from "@/context/useSubscriptionContext";
-import { router } from "expo-router";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Alert } from "react-native";
+import { useToast } from "./use-toast";
 
 export interface SubscriptionFeatures {
   canUseAI: boolean;
@@ -15,6 +15,8 @@ export interface SubscriptionFeatures {
 }
 
 export const useSubscriptionManager = () => {
+  const router = useRouter();
+  const { toast } = useToast();
   const {
     currentSubscription,
     subscriptionPlans,
@@ -74,21 +76,18 @@ export const useSubscriptionManager = () => {
     [features, currentSubscription]
   );
 
-  const promptForUpgrade = useCallback((featureName: string) => {
-    Alert.alert(
-      "Premium Feature",
-      `${featureName} is a premium feature. Upgrade your subscription to access it.`,
-      [
-        { text: "Maybe Later", style: "cancel" },
-        {
-          text: "Upgrade Now",
-          onPress: () => {
-            router.push("/Subscription");
-          },
-        },
-      ]
-    );
-  }, []);
+  const promptForUpgrade = useCallback(
+    (featureName: string) => {
+      if (
+        confirm(
+          `${featureName} is a premium feature. Upgrade your subscription to access it. Would you like to upgrade now?`
+        )
+      ) {
+        router.push("/dashboard/subscription");
+      }
+    },
+    [router]
+  );
 
   const getSubscriptionStatus = useCallback(() => {
     if (!currentSubscription) {
@@ -144,13 +143,20 @@ export const useSubscriptionManager = () => {
         }
       } catch (error) {
         console.error(`Failed to ${action} subscription:`, error);
-        Alert.alert(
-          "Error",
-          `Failed to ${action} subscription. Please try again.`
-        );
+        toast({
+          title: "Error",
+          description: `Failed to ${action} subscription. Please try again.`,
+          variant: "destructive",
+        });
       }
     },
-    [cancelSubscription, renewSubscription, autoRenewSubscription]
+    [
+      cancelSubscription,
+      renewSubscription,
+      autoRenewSubscription,
+      router,
+      toast,
+    ]
   );
 
   return {

@@ -1,4 +1,3 @@
-import NetInfo from "@react-native-community/netinfo";
 import { useEffect, useState } from "react";
 
 interface NetworkState {
@@ -9,31 +8,30 @@ interface NetworkState {
 
 export const useNetworkStatus = () => {
   const [networkState, setNetworkState] = useState<NetworkState>({
-    isConnected: true, // Default to true to avoid blocking initial load
-    isInternetReachable: null,
-    type: null,
+    isConnected: typeof navigator !== "undefined" ? navigator.onLine : true,
+    isInternetReachable:
+      typeof navigator !== "undefined" ? navigator.onLine : true,
+    type: "wifi", // Default for web
   });
 
   useEffect(() => {
-    // Get initial network state
-    NetInfo.fetch().then((state) => {
-      setNetworkState({
-        isConnected: state.isConnected ?? false,
-        isInternetReachable: state.isInternetReachable,
-        type: state.type,
-      });
-    });
+    if (typeof navigator === "undefined") return;
 
-    // Subscribe to network state changes
-    const unsubscribe = NetInfo.addEventListener((state) => {
+    const updateNetworkState = () => {
       setNetworkState({
-        isConnected: state.isConnected ?? false,
-        isInternetReachable: state.isInternetReachable,
-        type: state.type,
+        isConnected: navigator.onLine,
+        isInternetReachable: navigator.onLine,
+        type: "wifi",
       });
-    });
+    };
 
-    return () => unsubscribe();
+    window.addEventListener("online", updateNetworkState);
+    window.addEventListener("offline", updateNetworkState);
+
+    return () => {
+      window.removeEventListener("online", updateNetworkState);
+      window.removeEventListener("offline", updateNetworkState);
+    };
   }, []);
 
   return {

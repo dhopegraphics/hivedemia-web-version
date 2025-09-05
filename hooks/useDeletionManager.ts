@@ -1,6 +1,5 @@
-import { useToast } from "@/context/ToastContext";
+import { useToast } from "./use-toast";
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
 
 export interface DeletionState {
   deletingCourses: Set<string>;
@@ -28,7 +27,7 @@ export const useDeletionManager = (): UseDeletionManagerReturn => {
     new Set()
   );
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const { showToast } = useToast();
+  const { toast } = useToast();
 
   const startDeletingCourse = useCallback((courseId: string) => {
     setDeletingCourses((prev) => new Set(prev).add(courseId));
@@ -52,14 +51,24 @@ export const useDeletionManager = (): UseDeletionManagerReturn => {
 
   const showSuccessMessage = useCallback(
     (message: string) => {
-      showToast(message, "error", 400);
+      toast({
+        title: "Success",
+        description: message,
+      });
     },
-    [showToast]
+    [toast]
   );
 
-  const showErrorMessage = useCallback((error: string) => {
-    Alert.alert("Error", error);
-  }, []);
+  const showErrorMessage = useCallback(
+    (error: string) => {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    },
+    [toast]
+  );
 
   return {
     deletingCourses,

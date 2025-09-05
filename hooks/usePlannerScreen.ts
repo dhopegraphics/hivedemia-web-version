@@ -1,9 +1,7 @@
 import { usePlannerStore } from "@/backend/store/plannerStore";
 import { useAiSuggestionStore } from "@/backend/store/useAiSuggestionStore";
-import { useToast } from "@/context/ToastContext";
-import * as SQLite from "expo-sqlite";
+import { useToast } from "./use-toast";
 import { useEffect, useRef, useState } from "react";
-import { Alert } from "react-native";
 import {
   ExamType,
   MenuPosition,
@@ -20,7 +18,7 @@ import {
 } from "../utils/plannerUtils";
 
 export const usePlannerScreen = () => {
-  const { showToast } = useToast();
+  const { toast } = useToast();
 
   // Refs
   const bottomSheetRef = useRef<{
