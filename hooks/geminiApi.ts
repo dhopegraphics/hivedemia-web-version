@@ -1,7 +1,78 @@
 // api/gemini.ts
 
-import * as FileSystem from "expo-file-system";
 import OpenAI from "openai";
+
+// Web-compatible file system utilities
+const webFileSystem = {
+  async getInfoAsync(uri: string) {
+    // For web, we'll work with File objects or blob URLs
+    if (uri.startsWith("blob:")) {
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return {
+          exists: true,
+          size: blob.size,
+        };
+      } catch {
+        return { exists: false };
+      }
+    }
+
+    // For data URLs, we can estimate size
+    if (uri.startsWith("data:")) {
+      const base64Data = uri.split(",")[1];
+      const size = base64Data ? base64Data.length * 0.75 : 0; // Rough estimate
+      return {
+        exists: true,
+        size,
+      };
+    }
+
+    return { exists: true, size: undefined };
+  },
+
+  async readAsStringAsync(uri: string, options: { encoding: string }) {
+    try {
+      if (uri.startsWith("blob:")) {
+        const response = await fetch(uri);
+        if (options.encoding === "base64") {
+          const blob = await response.blob();
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              // Remove data:image/jpeg;base64, prefix if present
+              const base64 = result.includes(",")
+                ? result.split(",")[1]
+                : result;
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          return await response.text();
+        }
+      }
+
+      if (uri.startsWith("data:") && options.encoding === "base64") {
+        // Extract base64 data from data URL
+        const base64Data = uri.split(",")[1];
+        return base64Data || "";
+      }
+
+      throw new Error("Unsupported URI format for web");
+    } catch (error) {
+      console.error("Error reading file:", error);
+      throw error;
+    }
+  },
+
+  EncodingType: {
+    Base64: "base64" as const,
+  },
+};
 
 const openai = new OpenAI({
   baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -60,7 +131,7 @@ const processFormattedText = (text: string) => {
  */
 export const encodeImage = async (uri: string): Promise<string | null> => {
   try {
-    const fileInfo = await FileSystem.getInfoAsync(uri);
+    const fileInfo = await webFileSystem.getInfoAsync(uri);
     if (!fileInfo.exists) {
       throw new Error("File does not exist");
     }
@@ -70,8 +141,8 @@ export const encodeImage = async (uri: string): Promise<string | null> => {
       throw new Error("Image size too large. Maximum size is 20MB.");
     }
 
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
+    const base64 = await webFileSystem.readAsStringAsync(uri, {
+      encoding: webFileSystem.EncodingType.Base64,
     });
 
     if (!base64 || base64.length === 0) {

@@ -1,14 +1,89 @@
 import { useCourseStore } from "@/backend/store/useCourseStore";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated } from "react-native";
+
+// Web-compatible animation utility (reusing from useCourseActions)
+// Web-compatible animation utility
+class WebAnimatedValue {
+  constructor(private value: number = 0) {}
+
+  setValue(value: number) {
+    this.value = value;
+  }
+
+  timing(config: {
+    toValue: number;
+    duration: number;
+    useNativeDriver?: boolean;
+  }) {
+    return {
+      start: (callback?: () => void) => {
+        setTimeout(() => {
+          this.setValue(config.toValue);
+          callback?.();
+        }, config.duration);
+      },
+    };
+  }
+}
+
+const webAnimated = {
+  Value: WebAnimatedValue,
+
+  timing: (
+    animValue: WebAnimatedValue,
+    config: { toValue: number; duration: number; useNativeDriver?: boolean }
+  ) => ({
+    start: (callback?: () => void) => {
+      setTimeout(() => {
+        animValue.setValue(config.toValue);
+        callback?.();
+      }, config.duration);
+    },
+  }),
+
+  spring: (
+    animValue: WebAnimatedValue,
+    config: {
+      toValue: number;
+      tension?: number;
+      friction?: number;
+      useNativeDriver?: boolean;
+    }
+  ) => ({
+    start: (callback?: () => void) => {
+      setTimeout(() => {
+        animValue.setValue(config.toValue);
+        callback?.();
+      }, 300); // Default spring duration
+    },
+  }),
+
+  parallel: (
+    animations: Array<{ start: (callback?: () => void) => void }>
+  ) => ({
+    start: (callback?: () => void) => {
+      let completed = 0;
+      const total = animations.length;
+
+      animations.forEach((animation) => {
+        animation.start(() => {
+          completed++;
+          if (completed === total) {
+            callback?.();
+          }
+        });
+      });
+    },
+  }),
+};
 
 export interface CourseDataState {
   fetchError: string | null;
   refreshing: boolean;
   searchQuery: string;
   isLoading: boolean;
-  courses: any[];
-  filteredCourses: any[];
+  courses: unknown[];
+  filteredCourses: unknown[];
 }
 
 export interface CourseDataActions {
@@ -19,8 +94,8 @@ export interface CourseDataActions {
 export interface UseCourseDataReturn
   extends CourseDataState,
     CourseDataActions {
-  fadeAnim: Animated.Value;
-  slideAnim: Animated.Value;
+  fadeAnim: WebAnimatedValue;
+  slideAnim: WebAnimatedValue;
 }
 
 /**
@@ -33,8 +108,8 @@ export const useCourseData = (): UseCourseDataReturn => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Animation values
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const fadeAnim = useRef(new webAnimated.Value(0)).current;
+  const slideAnim = useRef(new webAnimated.Value(50)).current;
 
   const { courses } = useCourseStore();
 
@@ -54,19 +129,20 @@ export const useCourseData = (): UseCourseDataReturn => {
   );
 
   const animateEntrance = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    webAnimated
+      .parallel([
+        webAnimated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+        }),
+        webAnimated.spring(slideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ])
+      .start();
   }, [fadeAnim, slideAnim]);
 
   useEffect(() => {

@@ -1,10 +1,36 @@
 import { CourseDeletionService } from "@/utils/courseDeletionService";
-import { useRouter } from "expo-router";
+import { useRouter } from "next/navigation";
 import { useCallback, useRef } from "react";
-import { Animated } from "react-native";
 import { useCourseData } from "./useCourseData";
 import { useDeletionManager } from "./useDeletionManager";
 import { useSelectionManager } from "./useSelectionManager";
+
+// Web-compatible animation utility
+const webAnimated = {
+  Value: class {
+    constructor(private value: number = 0) {}
+
+    setValue(value: number) {
+      this.value = value;
+    }
+
+    timing(config: {
+      toValue: number;
+      duration: number;
+      useNativeDriver?: boolean;
+    }) {
+      return {
+        start: (callback?: () => void) => {
+          // Simple setTimeout-based animation for web
+          setTimeout(() => {
+            this.setValue(config.toValue);
+            callback?.();
+          }, config.duration);
+        },
+      };
+    }
+  },
+};
 
 export interface UseCourseActionsReturn {
   // Data and state
@@ -13,7 +39,7 @@ export interface UseCourseActionsReturn {
   deletionManager: ReturnType<typeof useDeletionManager>;
 
   // Animation
-  fabScale: Animated.Value;
+  fabScale: InstanceType<typeof webAnimated.Value>;
 
   // Actions
   handleLongPress: (courseId: string) => void;
@@ -33,19 +59,23 @@ export const useCourseActions = (): UseCourseActionsReturn => {
   const selectionManager = useSelectionManager();
   const deletionManager = useDeletionManager();
 
-  const fabScale = useRef(new Animated.Value(1)).current;
+  const fabScale = useRef(new webAnimated.Value(1)).current;
 
   const animateFAB = useCallback(() => {
-    Animated.sequence([
-      Animated.spring(fabScale, {
+    // Simple web animation sequence
+    fabScale
+      .timing({
         toValue: 0.9,
-        useNativeDriver: true,
-      }),
-      Animated.spring(fabScale, {
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-    ]).start();
+        duration: 100,
+      })
+      .start(() => {
+        fabScale
+          .timing({
+            toValue: 1,
+            duration: 100,
+          })
+          .start();
+      });
   }, [fabScale]);
 
   const handleCreateCourse = useCallback(() => {
