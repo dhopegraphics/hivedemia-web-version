@@ -5,7 +5,7 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({
   baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-  apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
+  apiKey: process.env.PUBLIC_GEMINI_API_KEY,
 });
 
 // Model selection strategy

@@ -2,7 +2,7 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({
   baseURL: "https://api.cohere.ai/compatibility/v1",
-  apiKey: process.env.EXPO_PUBLIC_COHERE_TRIAL_KEY, // Ensure this is securely stored
+  apiKey: process.env.PUBLIC_COHERE_TRIAL_KEY, // Ensure this is securely stored
 });
 
 export interface ChatMessage {

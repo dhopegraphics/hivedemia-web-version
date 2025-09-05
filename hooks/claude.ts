@@ -130,7 +130,7 @@ export class ClaudeError extends Error {
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
-  apiKey: process.env.EXPO_PUBLIC_CLAUDE_API_KEY,
+  apiKey: process.env.PUBLIC_CLAUDE_API_KEY,
 });
 
 /**
@@ -151,7 +151,7 @@ export async function generateQuestionsFromSamples(
     maxTokens?: number;
   } = {}
 ): Promise<string> {
-  if (!process.env.EXPO_PUBLIC_CLAUDE_API_KEY) {
+  if (!process.env.PUBLIC_CLAUDE_API_KEY) {
     throw new ClaudeError(
       "API key for Claude is not set. Please check your environment variables.",
       401

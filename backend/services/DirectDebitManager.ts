@@ -4,30 +4,25 @@ import { supabase } from "../supabase";
 function normalizeGhanaPhone(phone: string): string {
   // Remove all non-digit characters
   let clean = phone.replace(/\D/g, "");
-  console.log(
-    `Phone validation - Original: ${phone}, Clean: ${clean}, Length: ${clean.length}`
-  );
 
   // Remove leading country code if double (e.g. 00233...)
   if (clean.startsWith("00233")) {
     clean = clean.slice(2);
-    console.log(`Removed 00 prefix, now: ${clean}`);
   }
   // If starts with 0 and is 10 digits, convert to 233XXXXXXXXX
   if (clean.length === 10 && clean.startsWith("0")) {
     const result = "233" + clean.slice(1);
-    console.log(`Converted 0X format to 233X: ${result}`);
+
     return result;
   }
   // If starts with 233 and is 12 digits, return as is
   if (clean.length === 12 && clean.startsWith("233")) {
-    console.log(`Valid 233X format: ${clean}`);
     return clean;
   }
   // If starts with 233 and is 13 digits (e.g. +233...), remove leading +
   if (clean.length === 13 && clean.startsWith("233")) {
     const result = clean.slice(1);
-    console.log(`Removed extra digit, now: ${result}`);
+
     return result;
   }
 

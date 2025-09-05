@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY, // Ensure this is securely stored
+  apiKey: process.env.PUBLIC_OPENAI_API_KEY, // Ensure this is securely stored
   baseURL: "https://api.openai.com/v1",
 });
 

@@ -14,9 +14,6 @@ export async function initSupabaseSession() {
     return;
   }
 
-  // Always trust the stored session first - this function now runs in background
-  console.log("Using stored session, running background sync...");
-
   try {
     // Check network connectivity first
     const { isConnected } = await NetInfo.fetch();
@@ -72,7 +69,6 @@ export async function initSupabaseSession() {
             },
             expires_at: data.session.expires_at!,
           });
-          console.log("Session refreshed in background");
         } else {
           console.warn(
             "Background refresh failed (non-critical):",
@@ -96,9 +92,7 @@ export async function initSupabaseSession() {
         },
         expires_at: currentSession.expires_at!,
       });
-      console.log("Session synced with server in background");
     } else {
-      console.log("Session is already up to date");
     }
   } catch (error) {
     console.warn("Background session sync failed (non-critical):", error);
