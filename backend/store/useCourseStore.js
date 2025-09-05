@@ -1,8 +1,16 @@
 // @/store/useCourseStore.ts
 import { dbManager } from "@/backend/services/DatabaseManager";
 import { supabase } from "@/backend/supabase";
-import uuid from "react-native-uuid";
 import { create } from "zustand";
+
+// Web-compatible UUID utility
+const generateUUID = () => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 export const useCourseStore = create((set, get) => ({
   courses: [],
@@ -86,7 +94,7 @@ export const useCourseStore = create((set, get) => ({
 
   addLocalCourse: async (course) => {
     try {
-      const newId = uuid.v4();
+      const newId = generateUUID();
       await dbManager.executeWithRetry("courses.db", async (db) => {
         await db.runAsync(
           `INSERT INTO courses (id, createdby, title, code, description, professor, color, icon)

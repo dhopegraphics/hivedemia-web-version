@@ -1,7 +1,48 @@
 // Optimized Authentication Store with Memory Leak Prevention
 import { supabase } from "@/backend/supabase";
-import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
+
+// Web-compatible secure storage utility
+const webSecureStorage = {
+  async getItemAsync(key: string): Promise<string | null> {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  async setItemAsync(key: string, value: string): Promise<void> {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn(`Failed to set ${key} in localStorage:`, error);
+    }
+  },
+  async deleteItemAsync(key: string): Promise<void> {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Failed to delete ${key} from localStorage:`, error);
+    }
+  },
+};
+
+// Web-compatible network check
+async function checkNetworkConnectivity(): Promise<{ isConnected: boolean }> {
+  if (typeof navigator !== "undefined" && "onLine" in navigator) {
+    return { isConnected: navigator.onLine };
+  }
+
+  try {
+    const response = await fetch("/api/health", {
+      method: "HEAD",
+      cache: "no-cache",
+    });
+    return { isConnected: response.ok };
+  } catch {
+    return { isConnected: false };
+  }
+}
 
 type Session = {
   access_token: string;
@@ -41,7 +82,10 @@ class SessionValidator {
     return SessionValidator.instance;
   }
 
-  async validateSession(authStore: any): Promise<boolean> {
+  async validateSession(authStore: {
+    getState: () => AuthState;
+    setState: (state: Partial<AuthState>) => void;
+  }): Promise<boolean> {
     const now = Date.now();
 
     // Throttle validation requests
@@ -68,7 +112,10 @@ class SessionValidator {
     }
   }
 
-  private async performValidation(authStore: any): Promise<boolean> {
+  private async performValidation(authStore: {
+    getState: () => AuthState;
+    setState: (state: Partial<AuthState>) => void;
+  }): Promise<boolean> {
     try {
       // Always prioritize existing session first
       const { session } = authStore.getState();
@@ -82,13 +129,12 @@ class SessionValidator {
       if (session.expires_at && session.expires_at <= now) {
         console.log("Stored session has expired, clearing...");
         authStore.setState({ session: null, user: null });
-        await SecureStore.deleteItemAsync("session");
+        await webSecureStorage.deleteItemAsync("session");
         return false;
       }
 
       // Check network connectivity first
-      const NetInfo = await import("@react-native-community/netinfo");
-      const { isConnected } = await NetInfo.default.fetch();
+      const { isConnected } = await checkNetworkConnectivity();
 
       if (!isConnected) {
         console.log("Offline: Keeping stored session without validation");
@@ -119,7 +165,7 @@ class SessionValidator {
         console.log("No server session found - clearing local session");
         // If server says no session exists, clear local storage
         authStore.setState({ session: null, user: null });
-        await SecureStore.deleteItemAsync("session");
+        await webSecureStorage.deleteItemAsync("session");
         return false;
       }
 
@@ -140,7 +186,7 @@ class SessionValidator {
           session: validatedSession,
           user: validatedSession.user,
         });
-        await SecureStore.setItemAsync(
+        await webSecureStorage.setItemAsync(
           "session",
           JSON.stringify(validatedSession)
         );
@@ -157,7 +203,7 @@ class SessionValidator {
       );
       // On validation failure, clear the session to be safe
       authStore.setState({ session: null, user: null });
-      await SecureStore.deleteItemAsync("session");
+      await webSecureStorage.deleteItemAsync("session");
       return false;
     }
   }
@@ -179,14 +225,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
           // Validate session before storing
           if (!session.access_token || !session.user || !session.user.id) {
             console.warn("Invalid session provided to setSession");
-            await SecureStore.deleteItemAsync("session");
+            await webSecureStorage.deleteItemAsync("session");
             set({ session: null, user: null });
             return;
           }
-          await SecureStore.setItemAsync("session", JSON.stringify(session));
+          await webSecureStorage.setItemAsync(
+            "session",
+            JSON.stringify(session)
+          );
           set({ session, user: session.user });
         } else {
-          await SecureStore.deleteItemAsync("session");
+          await webSecureStorage.deleteItemAsync("session");
+          set({ session: null, user: null });
           set({ session: null, user: null });
         }
       } catch (error) {
@@ -198,7 +248,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     setOnboarded: async (value: boolean) => {
       try {
-        await SecureStore.setItemAsync(
+        await webSecureStorage.setItemAsync(
           "onboardingComplete",
           value ? "true" : "false"
         );
@@ -211,8 +261,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
     hydrateSession: async () => {
       try {
         const [rawSession, onboarded] = await Promise.all([
-          SecureStore.getItemAsync("session"),
-          SecureStore.getItemAsync("onboardingComplete"),
+          webSecureStorage.getItemAsync("session"),
+          webSecureStorage.getItemAsync("onboardingComplete"),
         ]);
 
         let parsed: Session | null = null;
@@ -234,19 +284,19 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 set({ session: parsed, user: parsed.user });
               } else {
                 console.log("Stored session has expired, clearing...");
-                await SecureStore.deleteItemAsync("session");
+                await webSecureStorage.deleteItemAsync("session");
                 set({ session: null, user: null });
               }
             } else {
               console.warn(
                 "Invalid session data found in storage, clearing..."
               );
-              await SecureStore.deleteItemAsync("session");
+              await webSecureStorage.deleteItemAsync("session");
               set({ session: null, user: null });
             }
           } catch (parseError) {
             console.error("Failed to parse stored session:", parseError);
-            await SecureStore.deleteItemAsync("session");
+            await webSecureStorage.deleteItemAsync("session");
             set({ session: null, user: null });
           }
         }
@@ -318,8 +368,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       // Run validation in background without affecting app flow
       setTimeout(async () => {
         try {
-          const netInfo = await import("@react-native-community/netinfo");
-          const { isConnected } = await netInfo.default.fetch();
+          const { isConnected } = await checkNetworkConnectivity();
 
           if (!isConnected) {
             console.log("Offline: Skipping background validation");
@@ -341,9 +390,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
     logout: async () => {
       try {
         await Promise.all([
-          SecureStore.deleteItemAsync("session"),
-          SecureStore.deleteItemAsync("onboardingComplete"), // Clear onboarding state on logout
-          SecureStore.deleteItemAsync("app_install_marker"), // Force fresh state on next login
+          webSecureStorage.deleteItemAsync("session"),
+          webSecureStorage.deleteItemAsync("onboardingComplete"), // Clear onboarding state on logout
+          webSecureStorage.deleteItemAsync("app_install_marker"), // Force fresh state on next login
           supabase.auth.signOut(),
         ]);
         set({ session: null, user: null, hasCompletedOnboarding: false });

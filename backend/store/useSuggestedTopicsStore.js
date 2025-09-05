@@ -1,8 +1,8 @@
 import { sendMessageToGemini } from "@/hooks/geminiApi";
-import * as SQLite from "expo-sqlite";
+import { dbManager } from "@/backend/services/DatabaseManager";
 import { create } from "zustand";
 
-let dbPromise = SQLite.openDatabaseAsync("suggestedCourses.db");
+const DB_NAME = "suggestedCourses";
 
 export const useSuggestedTopicsStore = create((set, get) => ({
   topics: [],

@@ -1,5 +1,4 @@
 import { dbManager } from "@/backend/services/DatabaseManager";
-import * as SQLite from "expo-sqlite";
 import { create } from "zustand";
 
 export const useSnapToSolveStore = create((set, get) => ({

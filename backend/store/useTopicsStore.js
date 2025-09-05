@@ -1,71 +1,90 @@
-import * as SQLite from "expo-sqlite";
 import { create } from "zustand";
 import { supabase } from "../supabase";
 
-// SQLite database setup
-const initializeDatabase = async () => {
-  const db = await SQLite.openDatabaseAsync("hivedemia.db");
+// Simple localStorage-based storage for web compatibility
+// This provides the same interface but uses web-compatible storage
+const webStorage = {
+  getTopics: () => {
+    try {
+      const stored = localStorage.getItem("hivedemia_topics");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  },
 
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    
-    CREATE TABLE IF NOT EXISTS topics (
-      id INTEGER PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      coursefile_id INTEGER NOT NULL,
-      course_id TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_topics_course_id ON topics(course_id);
-  `);
+  setTopics: (topics) => {
+    try {
+      localStorage.setItem("hivedemia_topics", JSON.stringify(topics));
+    } catch (error) {
+      console.warn("Failed to save topics to localStorage:", error);
+    }
+  },
 
-  return db;
+  addTopic: (topic) => {
+    const topics = webStorage.getTopics();
+    const newTopic = {
+      id: Date.now(), // Simple ID generation
+      ...topic,
+      created_at: new Date().toISOString(),
+    };
+    topics.push(newTopic);
+    webStorage.setTopics(topics);
+    return newTopic;
+  },
+
+  deleteTopicsByCourse: (courseId) => {
+    const topics = webStorage.getTopics();
+    const filtered = topics.filter((topic) => topic.course_id !== courseId);
+    webStorage.setTopics(filtered);
+  },
+
+  getTopicsByCourse: (courseId) => {
+    const topics = webStorage.getTopics();
+    return topics.filter((topic) => topic.course_id === courseId);
+  },
+
+  clearAllTopics: () => {
+    try {
+      localStorage.removeItem("hivedemia_topics");
+    } catch (error) {
+      console.warn("Failed to clear topics from localStorage:", error);
+    }
+  },
 };
 
 export const useTopicsStore = create((set, get) => ({
   topics: [],
   isLoading: false,
   error: null,
-  db: null,
 
-  // Initialize database
+  // Initialize - just load from localStorage
   initializeDatabase: async () => {
     try {
       set({ isLoading: true });
-      const database = await initializeDatabase();
-      set({ db: database, isLoading: false });
-      return database;
+      const topics = webStorage.getTopics();
+      set({ topics, isLoading: false });
     } catch (error) {
-      console.error("Error initializing topics database:", error);
+      console.error("Error loading topics:", error);
       set({ error: error.message, isLoading: false });
-      throw error;
     }
   },
 
-  // Fetch topics from local database
+  // Fetch topics from local storage
   fetchLocalTopics: async (courseId = null) => {
     try {
       set({ isLoading: true });
-      const db = get().db || (await get().initializeDatabase());
+      const allTopics = webStorage.getTopics();
+      const filteredTopics = courseId
+        ? allTopics.filter((topic) => topic.course_id === courseId)
+        : allTopics;
 
-      let query = "SELECT * FROM topics";
-      let params = [];
-
-      if (courseId) {
-        query += " WHERE course_id = ?";
-        params.push(courseId);
-      }
-
-      query += " ORDER BY name";
-
-      const topics = await db.getAllAsync(query, params);
-      set({ topics, isLoading: false });
-      return topics;
+      set({ topics: filteredTopics, isLoading: false });
+      return filteredTopics;
     } catch (error) {
-      console.error("Error fetching local topics:", error);
+      console.error("Error fetching topics:", error);
       set({ error: error.message, isLoading: false });
-      throw error;
+      return [];
     }
   },
 
@@ -73,7 +92,6 @@ export const useTopicsStore = create((set, get) => ({
   syncTopics: async (userId) => {
     try {
       set({ isLoading: true });
-      const db = get().db || (await get().initializeDatabase());
 
       // Fetch user's courses from Supabase
       const { data: courses, error: coursesError } = await supabase

@@ -1,6 +1,19 @@
 import { supabase } from "@/backend/supabase";
-import { router } from "expo-router";
 import { create } from "zustand";
+
+// Web-compatible navigation utility
+const webRouter = {
+  push: (path) => {
+    if (typeof window !== "undefined") {
+      window.location.href = path;
+    }
+  },
+  replace: (path) => {
+    if (typeof window !== "undefined") {
+      window.location.replace(path);
+    }
+  },
+};
 
 const useForgetPassword = create((set, get) => ({
   activeTab: "phone", // 'phone', 'email', or 'recovery'
@@ -130,7 +143,7 @@ const useForgetPassword = create((set, get) => ({
       });
       if (error) throw error;
       set({ isLoading: false });
-      router.replace("/(auth)/Log-in");
+      webRouter.replace("/auth/login");
       get().resetAllState();
     } catch (error) {
       set({ isLoading: false, error: error.message });

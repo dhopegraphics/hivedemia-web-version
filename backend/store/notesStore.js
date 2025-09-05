@@ -1,9 +1,142 @@
 import { dbManager } from "@/backend/services/DatabaseManager";
-import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
-import { Alert } from "react-native";
 import { create } from "zustand";
+
+// Web-compatible file picker utility
+const webDocumentPicker = {
+  async getDocumentAsync(options = {}) {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      if (options.type) {
+        input.accept = options.type.includes("*")
+          ? "*/*"
+          : options.type.join(",");
+      }
+      input.multiple = options.multiple || false;
+
+      input.onchange = async (event) => {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) {
+          resolve({ type: "cancel" });
+          return;
+        }
+
+        try {
+          const results = await Promise.all(
+            files.map(async (file) => ({
+              type: "success",
+              name: file.name,
+              size: file.size,
+              uri: URL.createObjectURL(file),
+              mimeType: file.type,
+              file: file, // Keep reference to original file for reading
+            }))
+          );
+
+          resolve(
+            options.multiple ? { type: "success", assets: results } : results[0]
+          );
+        } catch (error) {
+          console.error("File selection error:", error);
+          resolve({ type: "cancel" });
+        }
+      };
+
+      input.oncancel = () => resolve({ type: "cancel" });
+      input.click();
+    });
+  },
+};
+
+// Web-compatible file system utility
+const webFileSystem = {
+  async readAsStringAsync(uri) {
+    try {
+      if (uri.startsWith("blob:")) {
+        const response = await fetch(uri);
+        return await response.text();
+      }
+      // For regular URLs, fetch content
+      const response = await fetch(uri);
+      return await response.text();
+    } catch (error) {
+      console.error("Failed to read file:", error);
+      throw error;
+    }
+  },
+
+  async writeAsStringAsync(uri, content) {
+    // In web environment, we can't write directly to file system
+    // Instead, trigger download
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = uri.split("/").pop() || "file.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  documentDirectory: "/", // Not applicable in web
+  downloadAsync: async (url, fileUri) => {
+    // Trigger download
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileUri.split("/").pop() || "download";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return { uri: url };
+  },
+};
+
+// Web-compatible sharing utility
+const webSharing = {
+  async shareAsync(uri, options = {}) {
+    if (navigator.share && options.mimeType !== "application/pdf") {
+      try {
+        await navigator.share({
+          title: options.dialogTitle || "Share",
+          url: uri,
+        });
+        return;
+      } catch {
+        // Fall back to download if sharing fails
+      }
+    }
+
+    // Fallback: trigger download
+    const a = document.createElement("a");
+    a.href = uri;
+    a.download = options.UTI || "shared-file";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+
+  async isAvailableAsync() {
+    return "share" in navigator;
+  },
+};
+
+// Web-compatible alert utility
+const webAlert = {
+  alert: (title, message, buttons = [{ text: "OK" }]) => {
+    if (buttons.length === 1) {
+      window.alert(`${title}\n\n${message}`);
+      if (buttons[0].onPress) buttons[0].onPress();
+    } else {
+      const result = window.confirm(`${title}\n\n${message}`);
+      const button = result
+        ? buttons.find((b) => b.style !== "cancel") || buttons[0]
+        : buttons.find((b) => b.style === "cancel") ||
+          buttons[buttons.length - 1];
+      if (button.onPress) button.onPress();
+    }
+  },
+};
 
 export const useNotesStore = create((set, get) => ({
   noteContent: "",
@@ -93,17 +226,17 @@ CREATE TABLE IF NOT EXISTS voice_notes (
 
   attachFile: async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: true,
+      const result = await webDocumentPicker.getDocumentAsync({
+        multiple: false,
       });
-      if (result?.assets?.length) {
-        const { uri, name: fileName, mimeType, size } = result.assets[0];
+      if (result?.type === "success") {
+        const { uri, name: fileName, mimeType, size } = result;
 
         // Check file size limit (10MB)
         if (size) {
           const fileSizeInMB = size / (1024 * 1024);
           if (fileSizeInMB > 10) {
-            Alert.alert(
+            webAlert.alert(
               "File Too Large",
               `File size is ${fileSizeInMB.toFixed(
                 1
@@ -120,7 +253,7 @@ CREATE TABLE IF NOT EXISTS voice_notes (
           (existing) => existing.uri === uri
         );
         if (exists) {
-          Alert.alert(
+          webAlert.alert(
             "File Already Attached",
             "This file is already attached to this note."
           );
@@ -129,7 +262,7 @@ CREATE TABLE IF NOT EXISTS voice_notes (
 
         // Limit number of attachments to prevent memory issues
         if (currentAttachments.length >= 5) {
-          Alert.alert(
+          webAlert.alert(
             "Too Many Attachments",
             "You can only attach up to 5 files per note."
           );
@@ -247,11 +380,9 @@ CREATE TABLE IF NOT EXISTS voice_notes (
     const json = JSON.stringify(fileData, null, 2);
 
     const fileName = `note-${currentNoteId || Date.now()}.json`;
-    const path = FileSystem.documentDirectory + fileName;
 
-    await FileSystem.writeAsStringAsync(path, json, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    // Create and download the file in web environment
+    await webFileSystem.writeAsStringAsync(fileName, json);
 
     // Upload to Supabase
     const { supabase } = await import("@/backend/supabase"); // assumes you have this
@@ -271,11 +402,11 @@ CREATE TABLE IF NOT EXISTS voice_notes (
       .from("notes")
       .createSignedUrl(fileName, 3600);
     if (!data?.signedUrl) {
-      alert("Failed to generate share link");
+      window.alert("Failed to generate share link");
       return;
     }
 
-    await Sharing.shareAsync(path, {
+    await webSharing.shareAsync(data.signedUrl, {
       mimeType: "application/json",
       dialogTitle: "Share your note",
       UTI: "public.json",

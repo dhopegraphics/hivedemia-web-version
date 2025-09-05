@@ -1,5 +1,29 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+
+// Web-compatible storage utility
+const webAsyncStorage = {
+  async getItem(key: string): Promise<string | null> {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn(`Failed to set ${key} in localStorage:`, error);
+    }
+  },
+  async removeItem(key: string): Promise<void> {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Failed to remove ${key} from localStorage:`, error);
+    }
+  },
+};
 
 export interface ImportedQuiz {
   id: string;
@@ -78,7 +102,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
       };
 
       // Get existing quizzes
-      const existingQuizzes = await AsyncStorage.getItem(STORAGE_KEY);
+      const existingQuizzes = await webwebAsyncStorage.getItem(STORAGE_KEY);
       const quizzes: ImportedQuiz[] = existingQuizzes
         ? JSON.parse(existingQuizzes)
         : [];
@@ -87,7 +111,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
       quizzes.unshift(importedQuiz);
 
       // Save to storage
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(quizzes));
+      await webwebAsyncStorage.setItem(STORAGE_KEY, JSON.stringify(quizzes));
 
       // Update state
       set((state) => ({
@@ -108,7 +132,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await webAsyncStorage.getItem(STORAGE_KEY);
       const allQuizzes: ImportedQuiz[] = stored ? JSON.parse(stored) : [];
       console.log("Store: Total quizzes in storage:", allQuizzes.length);
 
@@ -133,7 +157,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await webAsyncStorage.getItem(STORAGE_KEY);
       const allQuizzes: ImportedQuiz[] = stored ? JSON.parse(stored) : [];
 
       const quiz = allQuizzes.find((q) => q.id === quizId);
@@ -159,7 +183,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await webAsyncStorage.getItem(STORAGE_KEY);
       const allQuizzes: ImportedQuiz[] = stored ? JSON.parse(stored) : [];
       console.log(
         "ImportedQuizStore: Found quizzes in storage:",
@@ -179,7 +203,10 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
       );
 
       // Save back to storage
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQuizzes));
+      await webAsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(updatedQuizzes)
+      );
       console.log("ImportedQuizStore: Saved updated quizzes to AsyncStorage");
 
       // Update state
@@ -211,7 +238,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
 
   updateQuizScore: async (quizId, score) => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await webAsyncStorage.getItem(STORAGE_KEY);
       const allQuizzes: ImportedQuiz[] = stored ? JSON.parse(stored) : [];
 
       // Update quiz score
@@ -227,7 +254,10 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
       });
 
       // Save back to storage
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQuizzes));
+      await webAsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(updatedQuizzes)
+      );
 
       // Update state
       set((state) => ({
@@ -258,7 +288,7 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
 
   updateImportedQuizTitle: async (quizId, newTitle) => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await webAsyncStorage.getItem(STORAGE_KEY);
       const allQuizzes: ImportedQuiz[] = stored ? JSON.parse(stored) : [];
 
       const updatedQuizzes = allQuizzes.map((quiz) => {
@@ -268,7 +298,10 @@ export const useImportedQuizStore = create<ImportedQuizStore>((set, get) => ({
         return quiz;
       });
 
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQuizzes));
+      await webAsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(updatedQuizzes)
+      );
 
       set((state) => ({
         importedQuizzes: state.importedQuizzes.map((q) =>

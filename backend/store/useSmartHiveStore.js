@@ -1,13 +1,18 @@
 import { dbManager } from "@/backend/services/DatabaseManager";
 import { sendMessageToCohere } from "@/hooks/cohereApi";
-import { Platform } from "react-native";
 import { create } from "zustand";
 import { useUserStore } from "./useUserStore";
+
+// Web platform detection
+const webPlatform = {
+  OS: "web",
+  isWeb: true,
+};
 
 // Constants for better maintainability
 const CONFIG = {
   DB_NAME: "smartHiveChat.db",
-  MAX_RETRY_ATTEMPTS: Platform.OS === "android" ? 3 : 1,
+  MAX_RETRY_ATTEMPTS: 1, // Web doesn't need as many retries as Android
   BASE_RETRY_DELAY: 200,
   AI_REQUEST_TIMEOUT: 30000,
   AI_RETRY_ATTEMPTS: 3,

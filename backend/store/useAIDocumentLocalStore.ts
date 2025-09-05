@@ -1,48 +1,53 @@
-import * as SQLite from "expo-sqlite";
+import { dbManager } from "@/backend/services/DatabaseManager";
 import { create } from "zustand";
 
-const DB_NAME = "ai_document_responses.db";
+const DB_NAME = "ai_document_responses";
 
-let db: SQLite.SQLiteDatabase | null = null;
+// Initialize tables on first use
+let tablesInitialized = false;
 
-async function getDb() {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync(DB_NAME);
-    // Initialize tables if not exist
-    await db.execAsync(`
-      PRAGMA journal_mode = WAL;
-      CREATE TABLE IF NOT EXISTS analyzed_documents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        coursefile_id TEXT NOT NULL,
-        course_id TEXT,
-        response_json TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS generated_quizzes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        coursefile_id TEXT NOT NULL,
-        course_id TEXT,
-        response_json TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS summaries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        coursefile_id TEXT NOT NULL,
-        course_id TEXT,
-        response_json TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS extracted_topics (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        coursefile_id TEXT NOT NULL,
-        course_id TEXT,
-        name TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(coursefile_id, name) ON CONFLICT REPLACE
-      );
-    `);
+async function ensureTables() {
+  if (tablesInitialized) return;
+
+  try {
+    await dbManager.executeWithRetry(DB_NAME, async (db) => {
+      await db.createTable("analyzed_documents", {
+        id: { type: "INTEGER", primaryKey: true, autoIncrement: true },
+        coursefile_id: { type: "TEXT", notNull: true },
+        course_id: { type: "TEXT" },
+        response_json: { type: "TEXT", notNull: true },
+        created_at: { type: "TEXT", default: "CURRENT_TIMESTAMP" },
+      });
+
+      await db.createTable("generated_quizzes", {
+        id: { type: "INTEGER", primaryKey: true, autoIncrement: true },
+        coursefile_id: { type: "TEXT", notNull: true },
+        course_id: { type: "TEXT" },
+        response_json: { type: "TEXT", notNull: true },
+        created_at: { type: "TEXT", default: "CURRENT_TIMESTAMP" },
+      });
+
+      await db.createTable("summaries", {
+        id: { type: "INTEGER", primaryKey: true, autoIncrement: true },
+        coursefile_id: { type: "TEXT", notNull: true },
+        course_id: { type: "TEXT" },
+        response_json: { type: "TEXT", notNull: true },
+        created_at: { type: "TEXT", default: "CURRENT_TIMESTAMP" },
+      });
+
+      await db.createTable("extracted_topics", {
+        id: { type: "INTEGER", primaryKey: true, autoIncrement: true },
+        coursefile_id: { type: "TEXT", notNull: true },
+        course_id: { type: "TEXT" },
+        name: { type: "TEXT", notNull: true },
+        created_at: { type: "TEXT", default: "CURRENT_TIMESTAMP" },
+      });
+    });
+
+    tablesInitialized = true;
+  } catch (error) {
+    console.error("Failed to initialize AI document tables:", error);
   }
-  return db;
 }
 
 type LocalAIResponse = {
@@ -53,36 +58,69 @@ type LocalAIResponse = {
   created_at?: string;
 };
 
+type ExtractedTopic = {
+  id?: number;
+  coursefile_id: string;
+  course_id?: string;
+  name: string;
+  created_at?: string;
+};
+
+type ProcessedFile = {
+  id: string;
+  coursefile_id: string;
+  hasAnalysis: boolean;
+  hasQuiz: boolean;
+  hasSummary: boolean;
+  fileName: string;
+  fileType: string;
+  fileSize: string | number;
+  date: string;
+  created_at?: string;
+};
+
 interface AIDocumentLocalStore {
   saveAnalysis: (
     coursefile_id: string,
     course_id: string,
-    response: any
+    response: Record<string, unknown>
   ) => Promise<void>;
   saveQuiz: (
     coursefile_id: string,
     course_id: string,
-    response: any
+    response: Record<string, unknown>
   ) => Promise<void>;
   saveSummary: (
     coursefile_id: string,
     course_id: string,
-    response: any
+    response: Record<string, unknown>
   ) => Promise<void>;
   saveExtractedTopics: (
     coursefile_id: string,
     course_id: string,
-    topics: string[],
-    summary?: string
+    topics: string[]
   ) => Promise<void>;
   getAnalysesByFile: (coursefile_id: string) => Promise<LocalAIResponse[]>;
   getQuizzesByFile: (coursefile_id: string) => Promise<LocalAIResponse[]>;
   getSummariesByFile: (coursefile_id: string) => Promise<LocalAIResponse[]>;
-  getExtractedTopicsByFile: (coursefile_id: string) => Promise<any>;
+  getExtractedTopicsByFile: (coursefile_id: string) => Promise<{
+    topics: string[];
+    summary: null;
+    topicsCount: number;
+    created_at: string;
+  } | null>;
   getAllAnalyses: () => Promise<LocalAIResponse[]>;
   getAllQuizzes: () => Promise<LocalAIResponse[]>;
   getAllSummaries: () => Promise<LocalAIResponse[]>;
-  getAllExtractedTopics: () => Promise<any[]>;
+  getAllExtractedTopics: () => Promise<
+    {
+      coursefile_id: string;
+      course_id?: string;
+      topics: string[];
+      topicsCount: number;
+      created_at: string;
+    }[]
+  >;
   deleteAnalysis: (id: number) => Promise<void>;
   deleteQuiz: (id: number) => Promise<void>;
   deleteSummary: (id: number) => Promise<void>;
@@ -93,55 +131,66 @@ interface AIDocumentLocalStore {
     course_id: string,
     topics: string[]
   ) => Promise<void>;
-  getProcessedFilesFromLocal: () => Promise<any[]>;
+  getProcessedFilesFromLocal: () => Promise<ProcessedFile[]>;
 }
 
 export const useAIDocumentLocalStore = create<AIDocumentLocalStore>(() => ({
   saveAnalysis: async (coursefile_id, course_id, response) => {
-    const db = await getDb();
-    await db.runAsync(
-      "INSERT INTO analyzed_documents (coursefile_id, course_id, response_json) VALUES (?, ?, ?)",
-      coursefile_id,
-      course_id,
-      JSON.stringify(response)
-    );
-  },
-  saveQuiz: async (coursefile_id, course_id, response) => {
-    const db = await getDb();
-    await db.runAsync(
-      "INSERT INTO generated_quizzes (coursefile_id, course_id, response_json) VALUES (?, ?, ?)",
-      coursefile_id,
-      course_id,
-      JSON.stringify(response)
-    );
-  },
-  saveSummary: async (coursefile_id, course_id, response) => {
-    const db = await getDb();
-    await db.runAsync(
-      "INSERT INTO summaries (coursefile_id, course_id, response_json) VALUES (?, ?, ?)",
-      coursefile_id,
-      course_id,
-      JSON.stringify(response)
-    );
-  },
-  saveExtractedTopics: async (coursefile_id, course_id, topics, summary) => {
-    const db = await getDb();
-
-    // First, delete existing topics for this file to avoid duplicates
-    await db.runAsync(
-      "DELETE FROM extracted_topics WHERE coursefile_id = ?",
-      coursefile_id
-    );
-
-    // Insert each topic as a separate row
-    for (const topicName of topics) {
-      await db.runAsync(
-        "INSERT INTO extracted_topics (coursefile_id, course_id, name) VALUES (?, ?, ?)",
+    await ensureTables();
+    await dbManager.executeWithRetry(DB_NAME, async (db) => {
+      await db.add("analyzed_documents", {
         coursefile_id,
         course_id,
-        topicName.trim()
+        response_json: JSON.stringify(response),
+        created_at: new Date().toISOString(),
+      });
+    });
+  },
+  saveQuiz: async (coursefile_id, course_id, response) => {
+    await ensureTables();
+    await dbManager.executeWithRetry(DB_NAME, async (db) => {
+      await db.add("generated_quizzes", {
+        coursefile_id,
+        course_id,
+        response_json: JSON.stringify(response),
+        created_at: new Date().toISOString(),
+      });
+    });
+  },
+  saveSummary: async (coursefile_id, course_id, response) => {
+    await ensureTables();
+    await dbManager.executeWithRetry(DB_NAME, async (db) => {
+      await db.add("summaries", {
+        coursefile_id,
+        course_id,
+        response_json: JSON.stringify(response),
+        created_at: new Date().toISOString(),
+      });
+    });
+  },
+  saveExtractedTopics: async (coursefile_id, course_id, topics) => {
+    await ensureTables();
+    await dbManager.executeWithRetry(DB_NAME, async (db) => {
+      // First, delete existing topics for this file to avoid duplicates
+      const existingTopics = await db.getAll("extracted_topics");
+      const toDelete = existingTopics.filter(
+        (topic: any) => topic.coursefile_id === coursefile_id
       );
-    }
+
+      for (const topic of toDelete) {
+        await db.delete("extracted_topics", topic.id);
+      }
+
+      // Insert each topic as a separate row
+      for (const topicName of topics) {
+        await db.add("extracted_topics", {
+          coursefile_id,
+          course_id,
+          name: topicName.trim(),
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
   },
   getAnalysesByFile: async (coursefile_id) => {
     const db = await getDb();

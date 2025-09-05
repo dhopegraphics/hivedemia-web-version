@@ -1,9 +1,33 @@
 import { supabase } from "@/backend/supabase";
 import { ErrorRecovery } from "@/utils/errorRecovery";
-import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 
 const PROFILE_KEY = "userProfile";
+
+// Web-compatible secure storage
+const webSecureStore = {
+  async getItemAsync(key: string): Promise<string | null> {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  async setItemAsync(key: string, value: string): Promise<void> {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn(`Failed to set ${key} in localStorage:`, error);
+    }
+  },
+  async deleteItemAsync(key: string): Promise<void> {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Failed to delete ${key} from localStorage:`, error);
+    }
+  },
+};
 
 export type UserProfile = {
   user_id: string;
@@ -30,9 +54,9 @@ interface UserState {
 
 const persistProfile = async (profile: UserProfile | null): Promise<void> => {
   if (profile) {
-    await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile));
+    await webSecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile));
   } else {
-    await SecureStore.deleteItemAsync(PROFILE_KEY);
+    await webSecureStore.deleteItemAsync(PROFILE_KEY);
   }
 };
 
@@ -60,7 +84,7 @@ export const useUserStore = create<UserState>((set, get) => {
 
     hydrateProfile: async () => {
       try {
-        const raw = await SecureStore.getItemAsync(PROFILE_KEY);
+        const raw = await webSecureStore.getItemAsync(PROFILE_KEY);
         if (raw) {
           const profile: UserProfile = JSON.parse(raw);
           smartSet({ profile });
