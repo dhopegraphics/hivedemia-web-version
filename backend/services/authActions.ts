@@ -1,10 +1,5 @@
 import { supabase } from "@/backend/supabase";
 import { clearAllLocalDatabases } from "@/utils/clearSnapToSolveDatabase";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system";
-import { router } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { Alert } from "react-native";
 
 // Types for feedback and validation
 export interface SignOutFeedback {
@@ -141,18 +136,20 @@ export class AuthActionsService {
   }
 
   /**
-   * Clears all AsyncStorage data
+   * Clears all localStorage data
    */
   static async clearAllAsyncStorage(): Promise<void> {
     try {
-      await AsyncStorage.clear();
+      if (typeof localStorage !== "undefined") {
+        localStorage.clear();
+      }
     } catch (error) {
-      console.warn("Failed to clear AsyncStorage:", error);
+      console.warn("Failed to clear localStorage:", error);
     }
   }
 
   /**
-   * Clears all SecureStore data
+   * Clears all localStorage secure data (web equivalent of SecureStore)
    */
   static async clearAllSecureStore(): Promise<void> {
     try {
@@ -167,38 +164,43 @@ export class AuthActionsService {
         "biometricEnabled",
       ];
 
-      await Promise.all(
-        keys.map(async (key) => {
+      if (typeof localStorage !== "undefined") {
+        keys.forEach((key) => {
           try {
-            await SecureStore.deleteItemAsync(key);
+            localStorage.removeItem(key);
           } catch (error) {
-            console.warn(`Failed to delete SecureStore key ${key}:`, error);
+            console.warn(`Failed to delete localStorage key ${key}:`, error);
           }
-        })
-      );
+        });
+      }
     } catch (error) {
-      console.warn("Failed to clear SecureStore:", error);
+      console.warn("Failed to clear localStorage:", error);
     }
   }
 
   /**
-   * Deletes all SQLite databases
+   * Deletes all IndexedDB databases (web equivalent of SQLite)
    */
   static async deleteAllSQLiteDatabases(): Promise<void> {
     try {
-      const sqliteDir = FileSystem.documentDirectory + "SQLite";
-      const dirInfo = await FileSystem.getInfoAsync(sqliteDir);
-
-      if (dirInfo.exists) {
-        const files = await FileSystem.readDirectoryAsync(sqliteDir);
+      if (typeof indexedDB !== "undefined") {
+        const databases = await indexedDB.databases();
         await Promise.all(
-          files.map((file) =>
-            FileSystem.deleteAsync(`${sqliteDir}/${file}`, { idempotent: true })
-          )
+          databases.map((db) => {
+            return new Promise<void>((resolve, reject) => {
+              if (db.name) {
+                const deleteReq = indexedDB.deleteDatabase(db.name);
+                deleteReq.onsuccess = () => resolve();
+                deleteReq.onerror = () => reject(deleteReq.error);
+              } else {
+                resolve();
+              }
+            });
+          })
         );
       }
     } catch (error) {
-      console.warn("Failed to delete SQLite databases:", error);
+      console.warn("Failed to delete IndexedDB databases:", error);
     }
   }
 
@@ -225,7 +227,8 @@ export class AuthActionsService {
   static async performSecureSignOut(
     feedback: SignOutFeedback,
     password: string,
-    logout: () => Promise<void>
+    logout: () => Promise<void>,
+    navigateToAuth?: () => void
   ): Promise<{ success: boolean; message?: string }> {
     try {
       // 1. Get current user email for password validation
@@ -254,9 +257,12 @@ export class AuthActionsService {
       // 4. Perform sign-out using the store's logout function
       await logout();
 
-      // 5. Clean up navigation and redirect
-      router.dismissAll();
-      router.replace("/(auth)");
+      // 5. Navigate to auth screen if navigation function provided
+      if (navigateToAuth) {
+        navigateToAuth();
+      } else if (typeof window !== "undefined") {
+        window.location.href = "/auth/login";
+      }
 
       return { success: true };
     } catch (error) {
@@ -272,7 +278,8 @@ export class AuthActionsService {
    * Enhanced secure account deletion with multiple validations
    */
   static async performSecureAccountDeletion(
-    data: AccountDeletionData
+    data: AccountDeletionData,
+    navigateToAuth?: () => void
   ): Promise<{ success: boolean; message?: string }> {
     try {
       // 1. Get current user
@@ -323,8 +330,11 @@ export class AuthActionsService {
       await this.performCompleteDataCleanup();
 
       // 7. Navigate to auth screen
-      router.dismissAll();
-      router.replace("/(auth)");
+      if (navigateToAuth) {
+        navigateToAuth();
+      } else if (typeof window !== "undefined") {
+        window.location.href = "/auth/login";
+      }
 
       return { success: true };
     } catch (error) {
@@ -356,10 +366,10 @@ export class AuthActionsService {
    * Show network error alert
    */
   static showNetworkError(): void {
-    Alert.alert(
-      "No Internet Connection",
-      "Please check your internet connection and try again.",
-      [{ text: "OK", style: "default" }]
-    );
+    if (typeof window !== "undefined") {
+      alert(
+        "No Internet Connection\n\nPlease check your internet connection and try again."
+      );
+    }
   }
 }

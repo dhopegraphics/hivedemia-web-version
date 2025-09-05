@@ -1,21 +1,16 @@
 /**
- * Database Connection Manager for Android SQLite Fix
+ * Database Connection Manager for Web (IndexedDB replacement for SQLite)
  *
- * This addresses the Android-specific NullPointerException issues by:
- * 1. Creating a single connection per database
- * 2. Reusing connections across operations
- * 3. Proper connection lifecycle management
- * 4. Initialization sequencing
+ * This provides a web-compatible alternative to the SQLite manager by:
+ * 1. Using IndexedDB for data persistence
+ * 2. Providing similar API patterns
+ * 3. Handling connection management
  */
-
-import * as SQLite from "expo-sqlite";
 
 class DatabaseManager {
   private static instance: DatabaseManager;
-  private connections: Map<string, SQLite.SQLiteDatabase> = new Map();
-  private initializationPromises: Map<string, Promise<SQLite.SQLiteDatabase>> =
-    new Map();
-  private isInitializing: Map<string, boolean> = new Map();
+  private databases: Map<string, IDBDatabase> = new Map();
+  private initializationPromises: Map<string, Promise<IDBDatabase>> = new Map();
 
   private constructor() {}
 
@@ -27,13 +22,16 @@ class DatabaseManager {
   }
 
   /**
-   * Get or create a database connection
-   * Ensures only one connection per database file
+   * Get or create an IndexedDB database connection
+   * Ensures only one connection per database
    */
-  async getDatabase(databaseName: string): Promise<SQLite.SQLiteDatabase> {
+  async getDatabase(
+    databaseName: string,
+    version: number = 1
+  ): Promise<IDBDatabase> {
     // Return existing connection if available
-    if (this.connections.has(databaseName)) {
-      return this.connections.get(databaseName)!;
+    if (this.databases.has(databaseName)) {
+      return this.databases.get(databaseName)!;
     }
 
     // If already initializing, wait for that promise
@@ -42,12 +40,12 @@ class DatabaseManager {
     }
 
     // Create new connection
-    const initPromise = this.createConnection(databaseName);
+    const initPromise = this.createConnection(databaseName, version);
     this.initializationPromises.set(databaseName, initPromise);
 
     try {
       const db = await initPromise;
-      this.connections.set(databaseName, db);
+      this.databases.set(databaseName, db);
       this.initializationPromises.delete(databaseName);
       return db;
     } catch (error) {
@@ -57,27 +55,38 @@ class DatabaseManager {
   }
 
   private async createConnection(
-    databaseName: string
-  ): Promise<SQLite.SQLiteDatabase> {
-    try {
-      console.log(`Creating database connection for: ${databaseName}`);
+    databaseName: string,
+    version: number
+  ): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      if (typeof indexedDB === "undefined") {
+        reject(new Error("IndexedDB is not supported in this environment"));
+        return;
+      }
 
-      const db = await SQLite.openDatabaseAsync(databaseName, {
-        // Note: NOT using useNewConnection: true
-        // This would create more connections, worsening the problem
-      });
+      console.log(`Creating IndexedDB connection for: ${databaseName}`);
 
-      // Enable WAL mode for better concurrency (Android-safe)
-      await db.execAsync("PRAGMA journal_mode = WAL;");
+      const request = indexedDB.open(databaseName, version);
 
-      return db;
-    } catch (error) {
-      console.error(
-        `Failed to create database connection for ${databaseName}:`,
-        error
-      );
-      throw error;
-    }
+      request.onerror = () => {
+        reject(
+          new Error(`Failed to open database ${databaseName}: ${request.error}`)
+        );
+      };
+
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+
+        // Create a default object store if it doesn't exist
+        if (!db.objectStoreNames.contains("data")) {
+          db.createObjectStore("data", { keyPath: "id", autoIncrement: true });
+        }
+      };
+    });
   }
 
   /**
@@ -85,7 +94,7 @@ class DatabaseManager {
    */
   async executeWithRetry<T>(
     databaseName: string,
-    operation: (db: SQLite.SQLiteDatabase) => Promise<T>,
+    operation: (db: IDBDatabase) => Promise<T>,
     maxRetries: number = 3
   ): Promise<T> {
     let lastError: Error;
@@ -120,41 +129,41 @@ class DatabaseManager {
     throw lastError!;
   }
 
-  private isConnectionError(error: any): boolean {
-    const errorMessage = error?.message?.toLowerCase() || "";
+  private isConnectionError(error: unknown): boolean {
+    const errorMessage = (error as Error)?.message?.toLowerCase() || "";
     return (
-      errorMessage.includes("nullpointerexception") ||
+      errorMessage.includes("database") ||
       errorMessage.includes("connection") ||
-      errorMessage.includes("database is locked") ||
-      errorMessage.includes("native")
+      errorMessage.includes("indexeddb") ||
+      errorMessage.includes("blocked")
     );
   }
 
   private resetConnection(databaseName: string): void {
-    this.connections.delete(databaseName);
+    const db = this.databases.get(databaseName);
+    if (db) {
+      db.close();
+    }
+    this.databases.delete(databaseName);
     this.initializationPromises.delete(databaseName);
-    this.isInitializing.delete(databaseName);
   }
 
   /**
    * Close all database connections (for app cleanup)
    */
   async closeAllConnections(): Promise<void> {
-    const closePromises = Array.from(this.connections.values()).map(
-      async (db) => {
-        try {
-          await db.closeAsync();
-        } catch (error) {
-          console.warn("Error closing database connection:", error);
-        }
+    const databases = Array.from(this.databases.values());
+
+    databases.forEach((db) => {
+      try {
+        db.close();
+      } catch (error) {
+        console.warn("Error closing database connection:", error);
       }
-    );
+    });
 
-    await Promise.all(closePromises);
-
-    this.connections.clear();
+    this.databases.clear();
     this.initializationPromises.clear();
-    this.isInitializing.clear();
   }
 }
 

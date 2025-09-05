@@ -1,7 +1,23 @@
 // src/backend/auth/initSupabaseSession.ts
 import { supabase } from "@/backend/supabase";
-import NetInfo from "@react-native-community/netinfo";
 import { useAuthStore } from "../store/authStore";
+
+// Web-compatible network check
+async function checkNetworkConnectivity(): Promise<boolean> {
+  if (typeof navigator !== "undefined" && "onLine" in navigator) {
+    return navigator.onLine;
+  }
+
+  try {
+    const response = await fetch("/api/health", {
+      method: "HEAD",
+      cache: "no-cache",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 export async function initSupabaseSession() {
   const { session, setSession } = useAuthStore.getState();
@@ -16,7 +32,7 @@ export async function initSupabaseSession() {
 
   try {
     // Check network connectivity first
-    const { isConnected } = await NetInfo.fetch();
+    const isConnected = await checkNetworkConnectivity();
     if (!isConnected) {
       console.log("Offline: Keeping stored session without server sync");
       return;

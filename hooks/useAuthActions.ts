@@ -8,12 +8,14 @@ import { useUserStore } from "@/backend/store/useUserStore";
 import { useSubscription } from "@/context/useSubscriptionContext";
 import { useState } from "react";
 import { useToast } from "./use-toast";
+import { useRouter } from "next/navigation";
 
 /**
  * Custom hook for managing enhanced authentication actions
  * Provides secure sign-out and account deletion with proper UX
  */
 export const useAuthActions = () => {
+  const router = useRouter();
   const { logout } = useAuthStore();
   const { profile } = useUserStore();
   const { clearUserData } = useSubscription();
@@ -41,7 +43,8 @@ export const useAuthActions = () => {
       const result = await AuthActionsService.performSecureSignOut(
         feedback,
         password,
-        logout
+        logout,
+        () => router.push("/auth/login")
       );
 
       if (!result.success) {
@@ -91,7 +94,8 @@ export const useAuthActions = () => {
       }
 
       const result = await AuthActionsService.performSecureAccountDeletion(
-        data
+        data,
+        () => router.push("/auth/login")
       );
 
       if (!result.success) {
