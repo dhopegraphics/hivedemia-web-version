@@ -5,6 +5,10 @@ import { create } from "zustand";
 // Web-compatible secure storage utility
 const webSecureStorage = {
   async getItemAsync(key: string): Promise<string | null> {
+    // Check if we're in a browser environment
+    if (typeof window === "undefined") {
+      return null;
+    }
     try {
       return localStorage.getItem(key);
     } catch {
@@ -12,6 +16,10 @@ const webSecureStorage = {
     }
   },
   async setItemAsync(key: string, value: string): Promise<void> {
+    // Check if we're in a browser environment
+    if (typeof window === "undefined") {
+      return;
+    }
     try {
       localStorage.setItem(key, value);
     } catch (error) {
@@ -19,6 +27,10 @@ const webSecureStorage = {
     }
   },
   async deleteItemAsync(key: string): Promise<void> {
+    // Check if we're in a browser environment
+    if (typeof window === "undefined") {
+      return;
+    }
     try {
       localStorage.removeItem(key);
     } catch (error) {
@@ -29,6 +41,11 @@ const webSecureStorage = {
 
 // Web-compatible network check
 async function checkNetworkConnectivity(): Promise<{ isConnected: boolean }> {
+  // Check if we're in a browser environment
+  if (typeof window === "undefined") {
+    return { isConnected: true }; // Assume connected on server
+  }
+
   if (typeof navigator !== "undefined" && "onLine" in navigator) {
     return { isConnected: navigator.onLine };
   }
@@ -248,6 +265,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     setOnboarded: async (value: boolean) => {
       try {
+        // Skip localStorage access on server-side
+        if (typeof window === "undefined") {
+          set({ hasCompletedOnboarding: value });
+          return;
+        }
         await webSecureStorage.setItemAsync(
           "onboardingComplete",
           value ? "true" : "false"
@@ -260,6 +282,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     hydrateSession: async () => {
       try {
+        // Skip hydration on server-side
+        if (typeof window === "undefined") {
+          set({ hydrated: true });
+          return;
+        }
+
         const [rawSession, onboarded] = await Promise.all([
           webSecureStorage.getItemAsync("session"),
           webSecureStorage.getItemAsync("onboardingComplete"),
