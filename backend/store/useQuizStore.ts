@@ -1,5 +1,4 @@
-import { dbManager } from "@/backend/services/DatabaseManager";
-import * as SQLite from "expo-sqlite";
+import { webDB } from "@/backend/services/WebDatabase";
 import { create } from "zustand";
 
 export interface Quiz {
@@ -50,33 +49,31 @@ export const useQuizStore = create<QuizState>((set) => ({
 
   initializeDatabase: async () => {
     try {
-      await dbManager.executeWithRetry("quizzes.db", async (db) => {
-        set({ isLoading: true });
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS quizzes (
-            id TEXT PRIMARY KEY,
-            userId TEXT,
-            prompt TEXT,
-            feedbackMode TEXT,
-            questionCount INTEGER,
-            difficulty TEXT,
-            questionTypes TEXT,
-            createdAt INTEGER
-          );
-        `);
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS quiz_questions (
-            id TEXT PRIMARY KEY,
-            quizId TEXT,
-            type TEXT,
-            question TEXT,
-            options TEXT,
-            correctAnswer TEXT,
-            explanation TEXT,
-            FOREIGN KEY (quizId) REFERENCES quizzes(id) ON DELETE CASCADE
-          );
-        `);
-      });
+      set({ isLoading: true });
+      await webDB.execAsync(`
+        CREATE TABLE IF NOT EXISTS quizzes (
+          id TEXT PRIMARY KEY,
+          userId TEXT,
+          prompt TEXT,
+          feedbackMode TEXT,
+          questionCount INTEGER,
+          difficulty TEXT,
+          questionTypes TEXT,
+          createdAt INTEGER
+        );
+      `);
+      await webDB.execAsync(`
+        CREATE TABLE IF NOT EXISTS quiz_questions (
+          id TEXT PRIMARY KEY,
+          quizId TEXT,
+          type TEXT,
+          question TEXT,
+          options TEXT,
+          correctAnswer TEXT,
+          explanation TEXT,
+          FOREIGN KEY (quizId) REFERENCES quizzes(id) ON DELETE CASCADE
+        );
+      `);
     } catch (err) {
       set({ error: "Failed to initialize database" });
       console.error(err);
@@ -90,22 +87,20 @@ export const useQuizStore = create<QuizState>((set) => ({
       set({ isLoading: true });
       const id = Math.random().toString(36).substring(2, 9);
       const createdAt = Date.now();
-      await dbManager.executeWithRetry("quizzes.db", async (db) => {
-        await db.runAsync(
-          `INSERT INTO quizzes (id, userId, prompt, feedbackMode, questionCount, difficulty, questionTypes, createdAt) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            quiz.userId,
-            quiz.prompt,
-            quiz.feedbackMode,
-            quiz.questionCount,
-            quiz.difficulty,
-            quiz.questionTypes,
-            createdAt,
-          ]
-        );
-      });
+      await webDB.runAsync(
+        `INSERT INTO quizzes (id, userId, prompt, feedbackMode, questionCount, difficulty, questionTypes, createdAt) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          quiz.userId,
+          quiz.prompt,
+          quiz.feedbackMode,
+          quiz.questionCount,
+          quiz.difficulty,
+          quiz.questionTypes,
+          createdAt,
+        ]
+      );
       return id;
     } catch (err) {
       const message = err instanceof Error ? err.message : JSON.stringify(err);
@@ -118,83 +113,76 @@ export const useQuizStore = create<QuizState>((set) => ({
   },
 
   saveQuizQuestions: async (quizId, questions) => {
-    await dbManager.executeWithRetry("quizzes.db", async (db) => {
-      await db.execAsync("BEGIN TRANSACTION;");
-      try {
-        for (const question of questions) {
-          const id = Math.random().toString(36).substring(2, 9);
+    await webDB.execAsync("BEGIN TRANSACTION;");
+    try {
+      for (const question of questions) {
+        const id = Math.random().toString(36).substring(2, 9);
 
-          // Ensure options are properly formatted for MCQ questions
-          let optionsToSave = question.options;
-          if (question.type === "mcq") {
-            if (!optionsToSave || optionsToSave.length === 0) {
-              console.error(
-                `MCQ question "${question.question}" has no options!`
-              );
-              // Instead of throwing an error, we could generate basic options
-              optionsToSave = [
-                question.correctAnswer,
-                "Option B",
-                "Option C",
-                "Option D",
-              ];
-              console.warn(
-                `Generated fallback options for MCQ: ${optionsToSave}`
-              );
-            }
-          }
-
-          // Ensure we don't double-stringify: convert to proper JSON string
-          let optionsString: string;
-          if (Array.isArray(optionsToSave)) {
-            optionsString = JSON.stringify(optionsToSave);
-          } else if (typeof optionsToSave === "string") {
-            // If it's already a string, check if it's valid JSON
-            try {
-              JSON.parse(optionsToSave);
-              optionsString = optionsToSave; // It's already a valid JSON string
-            } catch {
-              // If it's not valid JSON, treat it as a single option
-              optionsString = JSON.stringify([optionsToSave]);
-            }
-          } else {
-            // Fallback: stringify whatever we have
-            optionsString = JSON.stringify(optionsToSave || []);
-          }
-
-          await db.runAsync(
-            `INSERT INTO quiz_questions (id, quizId, type, question, options, correctAnswer, explanation) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              id,
-              quizId,
-              question.type,
-              question.question,
-              optionsString,
+        // Ensure options are properly formatted for MCQ questions
+        let optionsToSave = question.options;
+        if (question.type === "mcq") {
+          if (!optionsToSave || optionsToSave.length === 0) {
+            console.error(
+              `MCQ question "${question.question}" has no options!`
+            );
+            // Instead of throwing an error, we could generate basic options
+            optionsToSave = [
               question.correctAnswer,
-              question.explanation,
-            ]
-          );
+              "Option B",
+              "Option C",
+              "Option D",
+            ];
+            console.warn(
+              `Generated fallback options for MCQ: ${optionsToSave}`
+            );
+          }
         }
-        await db.execAsync("COMMIT;");
-      } catch (err) {
-        await db.execAsync("ROLLBACK;");
-        throw err;
+
+        // Ensure we don't double-stringify: convert to proper JSON string
+        let optionsString: string;
+        if (Array.isArray(optionsToSave)) {
+          optionsString = JSON.stringify(optionsToSave);
+        } else if (typeof optionsToSave === "string") {
+          // If it's already a string, check if it's valid JSON
+          try {
+            JSON.parse(optionsToSave);
+            optionsString = optionsToSave; // It's already a valid JSON string
+          } catch {
+            // If it's not valid JSON, treat it as a single option
+            optionsString = JSON.stringify([optionsToSave]);
+          }
+        } else {
+          // Fallback: stringify whatever we have
+          optionsString = JSON.stringify(optionsToSave || []);
+        }
+
+        await webDB.runAsync(
+          `INSERT INTO quiz_questions (id, quizId, type, question, options, correctAnswer, explanation) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            quizId,
+            question.type,
+            question.question,
+            optionsString,
+            question.correctAnswer,
+            question.explanation,
+          ]
+        );
       }
-    });
+      await webDB.execAsync("COMMIT;");
+    } catch (err) {
+      await webDB.execAsync("ROLLBACK;");
+      throw err;
+    }
   },
 
   getQuizzesByUser: async (userId) => {
     try {
       set({ isLoading: true });
-      const quizzes = (await dbManager.executeWithRetry(
-        "quizzes.db",
-        async (db) => {
-          return await db.getAllAsync(
-            "SELECT * FROM quizzes WHERE userId = ? ORDER BY createdAt DESC",
-            [userId]
-          );
-        }
+      const quizzes = (await webDB.getAllAsync(
+        "SELECT * FROM quizzes WHERE userId = ? ORDER BY createdAt DESC",
+        [userId]
       )) as Quiz[];
       set({ quizzes });
     } catch (err) {
@@ -208,58 +196,52 @@ export const useQuizStore = create<QuizState>((set) => ({
   getQuizWithQuestions: async (quizId) => {
     try {
       set({ isLoading: true });
-      const quiz = (await dbManager.executeWithRetry(
-        "quizzes.db",
-        async (db) => {
-          return await db.getFirstAsync("SELECT * FROM quizzes WHERE id = ?", [
-            quizId,
-          ]);
-        }
+      const quiz = (await webDB.getFirstAsync(
+        "SELECT * FROM quizzes WHERE id = ?",
+        [quizId]
       )) as Quiz | null;
 
-      const rawQuestions = (await dbManager.executeWithRetry(
-        "quizzes.db",
-        async (db) => {
-          return await db.getAllAsync(
-            "SELECT * FROM quiz_questions WHERE quizId = ?",
-            [quizId]
-          );
-        }
-      )) as any[];
+      const rawQuestions = (await webDB.getAllAsync(
+        "SELECT * FROM quiz_questions WHERE quizId = ?",
+        [quizId]
+      )) as unknown[];
 
       // Parse options JSON string back to array for each question
-      const questions: QuizQuestion[] = rawQuestions.map((question: any) => {
-        return {
-          ...question,
-          options: (() => {
-            if (!question.options) {
-              return [];
-            }
-            if (Array.isArray(question.options)) {
-              return question.options;
-            }
-            if (typeof question.options === "string") {
-              try {
-                let parsed = JSON.parse(question.options);
-
-                // Handle double-stringified JSON (legacy data)
-                if (typeof parsed === "string") {
-                  parsed = JSON.parse(parsed);
-                }
-
-                return Array.isArray(parsed) ? parsed : [];
-              } catch (error) {
-                console.error(
-                  `Error parsing options for question ${question.id}:`,
-                  error
-                );
+      const questions: QuizQuestion[] = rawQuestions.map(
+        (question: unknown) => {
+          const q = question as Record<string, unknown>;
+          return {
+            ...q,
+            options: (() => {
+              if (!q.options) {
                 return [];
               }
-            }
-            return [];
-          })(),
-        };
-      });
+              if (Array.isArray(q.options)) {
+                return q.options;
+              }
+              if (typeof q.options === "string") {
+                try {
+                  let parsed = JSON.parse(q.options);
+
+                  // Handle double-stringified JSON (legacy data)
+                  if (typeof parsed === "string") {
+                    parsed = JSON.parse(parsed);
+                  }
+
+                  return Array.isArray(parsed) ? parsed : [];
+                } catch (error) {
+                  console.error(
+                    `Error parsing options for question ${q.id}:`,
+                    error
+                  );
+                  return [];
+                }
+              }
+              return [];
+            })(),
+          } as QuizQuestion;
+        }
+      );
 
       set({ currentQuiz: quiz, questions });
     } catch (err) {
@@ -275,10 +257,8 @@ export const useQuizStore = create<QuizState>((set) => ({
       console.log("QuizStore: Starting deletion of quiz:", quizId);
       set({ isLoading: true });
 
-      const quizzesDb = await SQLite.openDatabaseAsync("quizzes.db");
-
       // Delete questions first, then quiz (foreign key constraint)
-      const questionsResult = await quizzesDb.runAsync(
+      const questionsResult = await webDB.runAsync(
         "DELETE FROM quiz_questions WHERE quizId = ?",
         [quizId]
       );
@@ -286,7 +266,7 @@ export const useQuizStore = create<QuizState>((set) => ({
         `QuizStore: Deleted ${questionsResult.changes} questions for quiz ${quizId}`
       );
 
-      const quizResult = await quizzesDb.runAsync(
+      const quizResult = await webDB.runAsync(
         "DELETE FROM quizzes WHERE id = ?",
         [quizId]
       );
@@ -321,8 +301,7 @@ export const useQuizStore = create<QuizState>((set) => ({
 
   updateQuizTitle: async (quizId, newTitle) => {
     try {
-      const quizzesDb = await SQLite.openDatabaseAsync("quizzes.db");
-      await quizzesDb.runAsync("UPDATE quizzes SET prompt = ? WHERE id = ?", [
+      await webDB.runAsync("UPDATE quizzes SET prompt = ? WHERE id = ?", [
         newTitle,
         quizId,
       ]);

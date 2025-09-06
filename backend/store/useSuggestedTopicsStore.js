@@ -1,8 +1,6 @@
 import { sendMessageToGemini } from "@/hooks/geminiApi";
-import { dbManager } from "@/backend/services/DatabaseManager";
+import { webDB } from "@/backend/services/WebDatabase";
 import { create } from "zustand";
-
-const DB_NAME = "suggestedCourses";
 
 export const useSuggestedTopicsStore = create((set, get) => ({
   topics: [],
@@ -20,8 +18,7 @@ export const useSuggestedTopicsStore = create((set, get) => ({
   },
 
   initTable: async () => {
-    const db = await dbPromise;
-    await db.execAsync(`
+    await webDB.execAsync(`
       CREATE TABLE IF NOT EXISTS suggested_topics (
         exam_id TEXT PRIMARY KEY,
         topics TEXT
@@ -30,10 +27,9 @@ export const useSuggestedTopicsStore = create((set, get) => ({
   },
 
   fetchTopics: async (examId) => {
-    const db = await dbPromise;
-    const rows = await db.getAllAsync(
+    const rows = await webDB.getAllAsync(
       "SELECT topics FROM suggested_topics WHERE exam_id = ?",
-      examId
+      [examId]
     );
     if (rows.length > 0) {
       const topics = JSON.parse(rows[0].topics);
@@ -46,22 +42,17 @@ export const useSuggestedTopicsStore = create((set, get) => ({
   },
 
   saveTopics: async (examId, topics) => {
-    const db = await dbPromise;
-    await db.runAsync(
+    await webDB.runAsync(
       "INSERT OR REPLACE INTO suggested_topics (exam_id, topics) VALUES (?, ?)",
-      examId,
-      JSON.stringify(topics)
+      [examId, JSON.stringify(topics)]
     );
   },
 
   // Check if topics should be regenerated for an exam
-  shouldRegenerateTopics: async (examId, currentExam) => {
-    const db = await dbPromise;
-
-    // First check if we have any topics for this exam
-    const rows = await db.getAllAsync(
+  shouldRegenerateTopics: async (examId) => {
+    const rows = await webDB.getAllAsync(
       "SELECT topics FROM suggested_topics WHERE exam_id = ?",
-      examId
+      [examId]
     );
 
     if (rows.length === 0) {

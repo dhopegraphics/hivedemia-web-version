@@ -1,4 +1,4 @@
-import { dbManager } from "@/backend/services/DatabaseManager";
+import { webDB } from "@/backend/services/WebDatabase";
 import { create } from "zustand";
 
 export const useSnapToSolveStore = create((set, get) => ({
@@ -8,86 +8,76 @@ export const useSnapToSolveStore = create((set, get) => ({
 
   initSnapToSolveTables: async () => {
     try {
-      await dbManager.executeWithRetry(
-        "smartHiveSnapToSolve.db",
-        async (db) => {
-          // First create the table with all columns if it doesn't exist
-          await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS snap_solutions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image_uri TEXT,
-            question_type TEXT,
-            subject TEXT,
-            user_prompt TEXT,
-            steps TEXT,
-            final_answer TEXT,
-            explanation TEXT,
-            created_at TEXT,
-            is_bookmarked INTEGER DEFAULT 0,
-            is_pinned INTEGER DEFAULT 0,
-            solution_format TEXT DEFAULT 'step-by-step',
-            tables_data TEXT,
-            code_blocks TEXT,
-            comparisons TEXT,
-            multiple_choice_questions TEXT,
-            multi_questions TEXT,
-            financial_statements TEXT,
-            ledger_accounts TEXT,
-            journal_entries TEXT,
-            accounting_type TEXT,
-            question TEXT
-          );
-        `);
+      // First create the table with all columns if it doesn't exist
+      await webDB.execAsync(`
+        CREATE TABLE IF NOT EXISTS snap_solutions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          image_uri TEXT,
+          question_type TEXT,
+          subject TEXT,
+          user_prompt TEXT,
+          steps TEXT,
+          final_answer TEXT,
+          explanation TEXT,
+          created_at TEXT,
+          is_bookmarked INTEGER DEFAULT 0,
+          is_pinned INTEGER DEFAULT 0,
+          solution_format TEXT DEFAULT 'step-by-step',
+          tables_data TEXT,
+          code_blocks TEXT,
+          comparisons TEXT,
+          multiple_choice_questions TEXT,
+          multi_questions TEXT,
+          financial_statements TEXT,
+          ledger_accounts TEXT,
+          journal_entries TEXT,
+          accounting_type TEXT,
+          question TEXT
+        );
+      `);
 
-          // Check if we need to add any missing columns (for existing tables)
-          try {
-            const tableInfo = await db.getAllAsync(
-              "PRAGMA table_info(snap_solutions);"
-            );
+      // Check if we need to add any missing columns (for existing tables)
+      try {
+        const tableInfo = await webDB.getAllAsync(
+          "PRAGMA table_info(snap_solutions);"
+        );
 
-            const existingColumns = tableInfo.map((col) => col.name);
-            const enhancedColumns = [
-              "solution_format",
-              "tables_data",
-              "code_blocks",
-              "comparisons",
-              "multiple_choice_questions",
-              "multi_questions",
-              "financial_statements",
-              "ledger_accounts",
-              "journal_entries",
-              "accounting_type",
-              "question",
-            ];
+        const existingColumns = tableInfo.map((col) => col.name);
+        const enhancedColumns = [
+          "solution_format",
+          "tables_data",
+          "code_blocks",
+          "comparisons",
+          "multiple_choice_questions",
+          "multi_questions",
+          "financial_statements",
+          "ledger_accounts",
+          "journal_entries",
+          "accounting_type",
+          "question",
+        ];
 
-            // Only add columns that don't exist
-            for (const column of enhancedColumns) {
-              if (!existingColumns.includes(column)) {
-                try {
-                  let defaultValue =
-                    column === "solution_format"
-                      ? " DEFAULT 'step-by-step'"
-                      : "";
-                  await db.execAsync(
-                    `ALTER TABLE snap_solutions ADD COLUMN ${column} TEXT${defaultValue};`
-                  );
-                  console.log(`Successfully added column: ${column}`);
-                } catch (alterErr) {
-                  // Only log if it's not a duplicate column error
-                  if (!alterErr.message.includes("duplicate column")) {
-                    console.log(
-                      `Error adding column ${column}:`,
-                      alterErr.message
-                    );
-                  }
-                }
+        // Only add columns that don't exist
+        for (const column of enhancedColumns) {
+          if (!existingColumns.includes(column)) {
+            try {
+              let defaultValue =
+                column === "solution_format" ? " DEFAULT 'step-by-step'" : "";
+              await webDB.execAsync(
+                `ALTER TABLE snap_solutions ADD COLUMN ${column} TEXT${defaultValue};`
+              );
+              console.log(`Successfully added column: ${column}`);
+            } catch (alterErr) {
+              // Only log if it's not a duplicate column error
+              if (!alterErr.message.includes("duplicate column")) {
+                console.log(`Error adding column ${column}:`, alterErr.message);
               }
             }
-          } catch (pragmaErr) {
-            console.log("Could not check table structure:", pragmaErr.message);
           }
         }
-      );
+      } catch (pragmaErr) {
+        console.log("Could not check table structure:", pragmaErr.message);
+      }
     } catch (err) {
       console.log("Database initialization error:", err.message);
       set({ error: "Failed to initialize SnapToSolve DB" });
@@ -96,50 +86,45 @@ export const useSnapToSolveStore = create((set, get) => ({
 
   saveSolution: async (solutionObj) => {
     try {
-      const result = await dbManager.executeWithRetry(
-        "smartHiveSnapToSolve.db",
-        async (db) => {
-          return await db.runAsync(
-            `INSERT INTO snap_solutions 
-          (image_uri, question_type, subject, user_prompt, steps, final_answer, explanation, created_at, solution_format, tables_data, code_blocks, comparisons, multiple_choice_questions, multi_questions, financial_statements, ledger_accounts, journal_entries, accounting_type, question)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              solutionObj.image,
-              solutionObj.questionType,
-              solutionObj.subject || "",
-              solutionObj.userPrompt || "",
-              JSON.stringify(solutionObj.steps || []),
-              solutionObj.finalAnswer,
-              solutionObj.explanation,
-              new Date().toISOString(),
-              solutionObj.solutionFormat || "step-by-step",
-              solutionObj.tables ? JSON.stringify(solutionObj.tables) : null,
-              solutionObj.codeBlocks
-                ? JSON.stringify(solutionObj.codeBlocks)
-                : null,
-              solutionObj.comparisons
-                ? JSON.stringify(solutionObj.comparisons)
-                : null,
-              solutionObj.multipleChoiceQuestions
-                ? JSON.stringify(solutionObj.multipleChoiceQuestions)
-                : null,
-              solutionObj.multiQuestions
-                ? JSON.stringify(solutionObj.multiQuestions)
-                : null,
-              solutionObj.financialStatements
-                ? JSON.stringify(solutionObj.financialStatements)
-                : null,
-              solutionObj.ledgerAccounts
-                ? JSON.stringify(solutionObj.ledgerAccounts)
-                : null,
-              solutionObj.journalEntries
-                ? JSON.stringify(solutionObj.journalEntries)
-                : null,
-              solutionObj.accountingType || null,
-              solutionObj.question || null,
-            ]
-          );
-        }
+      const result = await webDB.runAsync(
+        `INSERT INTO snap_solutions 
+        (image_uri, question_type, subject, user_prompt, steps, final_answer, explanation, created_at, solution_format, tables_data, code_blocks, comparisons, multiple_choice_questions, multi_questions, financial_statements, ledger_accounts, journal_entries, accounting_type, question)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          solutionObj.image,
+          solutionObj.questionType,
+          solutionObj.subject || "",
+          solutionObj.userPrompt || "",
+          JSON.stringify(solutionObj.steps || []),
+          solutionObj.finalAnswer,
+          solutionObj.explanation,
+          new Date().toISOString(),
+          solutionObj.solutionFormat || "step-by-step",
+          solutionObj.tables ? JSON.stringify(solutionObj.tables) : null,
+          solutionObj.codeBlocks
+            ? JSON.stringify(solutionObj.codeBlocks)
+            : null,
+          solutionObj.comparisons
+            ? JSON.stringify(solutionObj.comparisons)
+            : null,
+          solutionObj.multipleChoiceQuestions
+            ? JSON.stringify(solutionObj.multipleChoiceQuestions)
+            : null,
+          solutionObj.multiQuestions
+            ? JSON.stringify(solutionObj.multiQuestions)
+            : null,
+          solutionObj.financialStatements
+            ? JSON.stringify(solutionObj.financialStatements)
+            : null,
+          solutionObj.ledgerAccounts
+            ? JSON.stringify(solutionObj.ledgerAccounts)
+            : null,
+          solutionObj.journalEntries
+            ? JSON.stringify(solutionObj.journalEntries)
+            : null,
+          solutionObj.accountingType || null,
+          solutionObj.question || null,
+        ]
       );
 
       const newSolution = {
@@ -180,13 +165,8 @@ export const useSnapToSolveStore = create((set, get) => ({
 
   getAllSolutions: async () => {
     try {
-      const rows = await dbManager.executeWithRetry(
-        "smartHiveSnapToSolve.db",
-        async (db) => {
-          return await db.getAllAsync(
-            `SELECT * FROM snap_solutions ORDER BY created_at DESC`
-          );
-        }
+      const rows = await webDB.getAllAsync(
+        `SELECT * FROM snap_solutions ORDER BY created_at DESC`
       );
       set({
         solutions: rows.map((row) => ({
@@ -223,13 +203,9 @@ export const useSnapToSolveStore = create((set, get) => ({
 
   deleteSolution: async (solutionId) => {
     try {
-      const smartHiveSnapToSolveDb = await SQLite.openDatabaseAsync(
-        "smartHiveSnapToSolve.db"
-      );
-      await smartHiveSnapToSolveDb.runAsync(
-        `DELETE FROM snap_solutions WHERE id = ?`,
-        [solutionId]
-      );
+      await webDB.runAsync(`DELETE FROM snap_solutions WHERE id = ?`, [
+        solutionId,
+      ]);
       set((state) => ({
         solutions: state.solutions.filter(
           (solution) => solution.id !== solutionId
@@ -244,10 +220,7 @@ export const useSnapToSolveStore = create((set, get) => ({
 
   toggleBookmark: async (solutionId, isBookmarked) => {
     try {
-      const smartHiveSnapToSolveDb = await SQLite.openDatabaseAsync(
-        "smartHiveSnapToSolve.db"
-      );
-      await smartHiveSnapToSolveDb.runAsync(
+      await webDB.runAsync(
         `UPDATE snap_solutions SET is_bookmarked = ? WHERE id = ?`,
         [isBookmarked ? 1 : 0, solutionId]
       );
@@ -267,10 +240,7 @@ export const useSnapToSolveStore = create((set, get) => ({
 
   togglePin: async (solutionId, isPinned) => {
     try {
-      const smartHiveSnapToSolveDb = await SQLite.openDatabaseAsync(
-        "smartHiveSnapToSolve.db"
-      );
-      await smartHiveSnapToSolveDb.runAsync(
+      await webDB.runAsync(
         `UPDATE snap_solutions SET is_pinned = ? WHERE id = ?`,
         [isPinned ? 1 : 0, solutionId]
       );

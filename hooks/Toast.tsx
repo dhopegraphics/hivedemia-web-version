@@ -7,17 +7,102 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Image, LayoutChangeEvent, StyleSheet } from "react-native";
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from "react-native-reanimated";
+import Image from "next/image";
+
+// Web-compatible shared value
+class WebSharedValue {
+  public value: number;
+  private listeners: Set<() => void> = new Set();
+
+  constructor(initialValue: number) {
+    this.value = initialValue;
+  }
+
+  addListener(listener: () => void) {
+    this.listeners.add(listener);
+  }
+
+  removeListener(listener: () => void) {
+    this.listeners.delete(listener);
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach((listener) => listener());
+  }
+
+  setValue(newValue: number) {
+    this.value = newValue;
+    this.notifyListeners();
+  }
+}
+
+// Web-compatible animation functions
+const webAnimation = {
+  useSharedValue: (initial: number) => new WebSharedValue(initial),
+
+  withTiming: (
+    toValue: number,
+    config?: { duration?: number; easing?: any }
+  ) => {
+    return {
+      toValue,
+      duration: config?.duration || 300,
+      easing: config?.easing,
+    };
+  },
+
+  withDelay: (delay: number, animation: any) => {
+    return {
+      ...animation,
+      delay,
+    };
+  },
+
+  useAnimatedStyle: (styleFunction: () => any, dependencies: any[] = []) => {
+    const [style, setStyle] = useState(styleFunction());
+
+    useEffect(() => {
+      setStyle(styleFunction());
+    }, dependencies);
+
+    return style;
+  },
+
+  interpolate: (
+    value: number,
+    inputRange: number[],
+    outputRange: number[],
+    extrapolation?: any
+  ) => {
+    if (value <= inputRange[0]) return outputRange[0];
+    if (value >= inputRange[inputRange.length - 1])
+      return outputRange[outputRange.length - 1];
+
+    for (let i = 0; i < inputRange.length - 1; i++) {
+      if (value >= inputRange[i] && value <= inputRange[i + 1]) {
+        const ratio =
+          (value - inputRange[i]) / (inputRange[i + 1] - inputRange[i]);
+        return outputRange[i] + ratio * (outputRange[i + 1] - outputRange[i]);
+      }
+    }
+    return outputRange[0];
+  },
+
+  runOnJS:
+    (fn: Function) =>
+    (...args: any[]) => {
+      setTimeout(() => fn(...args), 0);
+    },
+
+  Easing: {
+    bezierFn: (x1: number, y1: number, x2: number, y2: number) =>
+      "cubic-bezier(" + [x1, y1, x2, y2].join(",") + ")",
+  },
+
+  Extrapolation: {
+    CLAMP: "clamp",
+  },
+};
 
 export interface IToast {
   show: (
@@ -53,8 +138,8 @@ const IndividualToast: React.FC<{
   textLength: number;
   toastHeight: number;
 }> = ({ toast, index, duration, onComplete, textLength, toastHeight }) => {
-  const transY = useSharedValue(-toastHeight);
-  const transX = useSharedValue(0);
+  const transY = webAnimation.useSharedValue(-toastHeight);
+  const transX = webAnimation.useSharedValue(0);
   const [localTextLength, setLocalTextLength] = useState(textLength);
   const [localToastHeight, setLocalToastHeight] = useState(toastHeight);
 
@@ -68,34 +153,27 @@ const IndividualToast: React.FC<{
     if (effectiveTextLength === 0 || effectiveToastHeight === 0) return;
 
     // Initialize position - start hidden above and collapsed
-    transY.value = -effectiveToastHeight;
-    transX.value = effectiveTextLength + 24; // Start collapsed/closed
+    transY.setValue(-effectiveToastHeight);
+    transX.setValue(effectiveTextLength + 24); // Start collapsed/closed
 
     // Start animation sequence with calculated delay
     setTimeout(() => {
       // Step 1: Drop down closed (collapsed)
-      transY.value = withTiming(80, { duration: duration });
+      transY.setValue(80);
 
       // Step 2: Open after dropping down
-      transX.value = withDelay(duration, withTiming(0, { duration: duration }));
+      setTimeout(() => {
+        transX.setValue(0);
+      }, duration);
 
       // Auto-hide timer
       setTimeout(() => {
         // Step 3: Close first, then go up
-        transX.value = withTiming(effectiveTextLength + 12, { duration });
-        transY.value = withDelay(
-          duration,
-          withTiming(
-            -effectiveToastHeight,
-            {
-              duration: duration,
-              easing: Easing.bezierFn(0.36, 0, 0.66, -0.56),
-            },
-            () => {
-              runOnJS(onComplete)(toast.id);
-            }
-          )
-        );
+        transX.setValue(effectiveTextLength + 12);
+        setTimeout(() => {
+          transY.setValue(-effectiveToastHeight);
+          onComplete(toast.id);
+        }, duration);
       }, 4000);
     }, effectiveStartDelay + 10);
   }, [
@@ -109,43 +187,46 @@ const IndividualToast: React.FC<{
     toast.id,
   ]);
 
-  const rView = useAnimatedStyle(() => {
+  const rView = webAnimation.useAnimatedStyle(() => {
     return {
-      transform: [{ translateY: transY.value }],
-      opacity: interpolate(
+      transform: `translateY(${transY.value}px)`,
+      opacity: webAnimation.interpolate(
         transY.value,
         [-effectiveToastHeight, 80],
-        [0, 1],
-        Extrapolation.CLAMP
+        [0, 1]
       ),
     };
   }, [effectiveToastHeight]);
 
-  const rOuterView = useAnimatedStyle(() => {
+  const rOuterView = webAnimation.useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: -Math.max(transX.value, 1) / 2 }],
+      transform: `translateX(${-Math.max(transX.value, 1) / 2}px)`,
     };
   }, []);
 
-  const rInnerView = useAnimatedStyle(() => {
+  const rInnerView = webAnimation.useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: transX.value }],
+      transform: `translateX(${transX.value}px)`,
     };
   }, []);
 
-  const rText = useAnimatedStyle(() => {
+  const rText = webAnimation.useAnimatedStyle(() => {
     return {
-      opacity: interpolate(transX.value, [0, effectiveTextLength], [1, 0]),
+      opacity: webAnimation.interpolate(
+        transX.value,
+        [0, effectiveTextLength],
+        [1, 0]
+      ),
     };
   }, [effectiveTextLength]);
 
   function generateImage(type: "info" | "success" | "error") {
     if (type === "success") {
-      return require("../assets/images/check.png");
+      return "/images/check.png"; // Move images to public/images
     } else if (type === "error") {
-      return require("../assets/images/error-icon.png");
+      return "/images/error-icon.png";
     } else {
-      return require("../assets/images/info_Icon.png");
+      return "/images/info_Icon.png";
     }
   }
 
@@ -159,44 +240,52 @@ const IndividualToast: React.FC<{
     }
   }
 
-  const handleTextLayout = (event: LayoutChangeEvent) => {
-    const width = Math.floor(event.nativeEvent.layout.width);
+  const handleTextLayout = (event: React.SyntheticEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const width = Math.floor(target.offsetWidth);
     if (localTextLength !== width) {
       setLocalTextLength(width);
     }
   };
 
-  const handleViewLayout = (event: LayoutChangeEvent) => {
-    const height = event.nativeEvent.layout.height;
+  const handleViewLayout = (event: React.SyntheticEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const height = target.offsetHeight;
     if (localToastHeight !== height) {
       setLocalToastHeight(height);
     }
   };
 
   return (
-    <Animated.View
-      style={[styles.container, { top: index * 60 }, rView]}
-      onLayout={handleViewLayout}
+    <div
+      style={{
+        ...styles.container,
+        top: index * 60,
+        ...rView,
+      }}
+      onLoad={handleViewLayout}
     >
-      <Animated.View style={[styles.outerContainer, rOuterView]}>
-        <Animated.View
-          style={[
-            styles.innerContainer,
-            rInnerView,
-            { backgroundColor: generateBackgroundColor(toast.type) },
-          ]}
+      <div style={{ ...styles.outerContainer, ...rOuterView }}>
+        <div
+          style={{
+            ...styles.innerContainer,
+            ...rInnerView,
+            backgroundColor: generateBackgroundColor(toast.type),
+          }}
         >
-          <Image source={generateImage(toast.type)} style={styles.image} />
-          <Animated.Text
-            style={[styles.text, rText]}
-            numberOfLines={0}
-            onLayout={handleTextLayout}
-          >
+          <Image
+            src={generateImage(toast.type)}
+            width={20}
+            height={20}
+            alt={`${toast.type} icon`}
+            style={styles.image}
+          />
+          <div style={{ ...styles.text, ...rText }} onLoad={handleTextLayout}>
             {toast.text}
-          </Animated.Text>
-        </Animated.View>
-      </Animated.View>
-    </Animated.View>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -218,8 +307,8 @@ const Toast = forwardRef<IToast, Props>(
     const [toastHeight, setToastHeight] = useState(0);
 
     // Animation values for queue mode (single toast)
-    const transY = useSharedValue(0);
-    const transX = useSharedValue(0);
+    const transY = webAnimation.useSharedValue(0);
+    const transX = webAnimation.useSharedValue(0);
 
     useImperativeHandle(ref, () => ({
       show,
@@ -283,20 +372,13 @@ const Toast = forwardRef<IToast, Props>(
           timers.current.delete(toastId);
         }
 
-        transX.value = withTiming(textLength + 12, { duration });
-        transY.value = withDelay(
-          duration,
-          withTiming(
-            -toastHeight,
-            {
-              duration: duration,
-              easing: Easing.bezierFn(0.36, 0, 0.66, -0.56),
-            },
-            () => {
-              runOnJS(handleToastComplete)(toastId);
-            }
-          )
-        );
+        transX.setValue(textLength + 12);
+        setTimeout(() => {
+          transY.setValue(-toastHeight);
+          setTimeout(() => {
+            handleToastComplete(toastId);
+          }, duration);
+        }, duration);
       },
       [duration, textLength, toastHeight, transX, transY, handleToastComplete]
     );
@@ -304,11 +386,10 @@ const Toast = forwardRef<IToast, Props>(
     // Show animation
     const showAnimation = useCallback(
       (toast: ToastItem) => {
-        transY.value = withTiming(80, { duration: duration });
-        transX.value = withDelay(
-          duration,
-          withTiming(0, { duration: duration })
-        );
+        transY.setValue(80);
+        setTimeout(() => {
+          transX.setValue(0);
+        }, duration);
 
         // Set auto-hide timer
         const hideTimer = setTimeout(() => {
@@ -328,7 +409,7 @@ const Toast = forwardRef<IToast, Props>(
         toastHeight > 0 &&
         currentToast
       ) {
-        transX.value = withTiming(textLength + 24, { duration: 200 });
+        transX.setValue(textLength + 24);
 
         setTimeout(() => {
           showAnimation(currentToast);
@@ -339,7 +420,7 @@ const Toast = forwardRef<IToast, Props>(
     // Effect to initialize position
     useEffect(() => {
       if (toastHeight > 0) {
-        transY.value = -toastHeight;
+        transY.setValue(-toastHeight);
       }
     }, [toastHeight, transY]);
 
@@ -362,64 +443,72 @@ const Toast = forwardRef<IToast, Props>(
       const toastKey = `toast_${toast.id}`;
 
       return (
-        <Animated.View
+        <div
           key={toastKey}
-          onLayout={handleViewLayout}
-          style={[
-            styles.container,
-            mode === "stack" && { top: index * 60 }, // Stack with spacing
-            rView,
-          ]}
+          onLoad={handleViewLayout}
+          style={{
+            ...styles.container,
+            ...(mode === "stack" && { top: index * 60 }), // Stack with spacing
+            ...rView,
+          }}
         >
-          <Animated.View style={[styles.outerContainer, rOuterView]}>
-            <Animated.View
-              style={[
-                styles.innerContainer,
-                rInnerView,
-                { backgroundColor: generateBackgroundColor(toast.type) },
-              ]}
+          <div style={{ ...styles.outerContainer, ...rOuterView }}>
+            <div
+              style={{
+                ...styles.innerContainer,
+                ...rInnerView,
+                backgroundColor: generateBackgroundColor(toast.type),
+              }}
             >
-              <Image source={generateImage(toast.type)} style={styles.image} />
-              <Animated.Text
-                onLayout={handleTextLayout}
-                style={[styles.text, rText]}
-                numberOfLines={0} // Allow multiline
+              <Image
+                src={generateImage(toast.type)}
+                width={20}
+                height={20}
+                alt={`${toast.type} icon`}
+                style={styles.image}
+              />
+              <div
+                onLoad={handleTextLayout}
+                style={{ ...styles.text, ...rText }}
               >
                 {toast.text}
-              </Animated.Text>
-            </Animated.View>
-          </Animated.View>
-        </Animated.View>
+              </div>
+            </div>
+          </div>
+        </div>
       );
     };
 
-    const rView = useAnimatedStyle(() => {
+    const rView = webAnimation.useAnimatedStyle(() => {
       return {
-        transform: [{ translateY: transY.value }],
-        opacity: interpolate(
+        transform: `translateY(${transY.value}px)`,
+        opacity: webAnimation.interpolate(
           transY.value,
           [-toastHeight, 80],
-          [0, 1],
-          Extrapolation.CLAMP
+          [0, 1]
         ),
       };
     }, [toastHeight]);
 
-    const rOuterView = useAnimatedStyle(() => {
+    const rOuterView = webAnimation.useAnimatedStyle(() => {
       return {
-        transform: [{ translateX: -Math.max(transX.value, 1) / 2 }],
+        transform: `translateX(${-Math.max(transX.value, 1) / 2}px)`,
       };
     }, []);
 
-    const rInnerView = useAnimatedStyle(() => {
+    const rInnerView = webAnimation.useAnimatedStyle(() => {
       return {
-        transform: [{ translateX: transX.value }],
+        transform: `translateX(${transX.value}px)`,
       };
     }, []);
 
-    const rText = useAnimatedStyle(() => {
+    const rText = webAnimation.useAnimatedStyle(() => {
       return {
-        opacity: interpolate(transX.value, [0, textLength], [1, 0]),
+        opacity: webAnimation.interpolate(
+          transX.value,
+          [0, textLength],
+          [1, 0]
+        ),
       };
     }, [textLength]);
 
@@ -491,11 +580,11 @@ const Toast = forwardRef<IToast, Props>(
 
     function generateImage(type: "info" | "success" | "error") {
       if (type === "success") {
-        return require("../assets/images/check.png");
+        return "/images/check.png"; // Move images to public/images
       } else if (type === "error") {
-        return require("../assets/images/error-icon.png");
+        return "/images/error-icon.png";
       } else {
-        return require("../assets/images/info_Icon.png");
+        return "/images/info_Icon.png";
       }
     }
 
@@ -509,37 +598,41 @@ const Toast = forwardRef<IToast, Props>(
       }
     }
 
-    function handleTextLayout(event: LayoutChangeEvent) {
-      if (textLength !== event.nativeEvent.layout.width) {
-        setTextLength(Math.floor(event.nativeEvent.layout.width));
+    function handleTextLayout(event: React.SyntheticEvent<HTMLDivElement>) {
+      const target = event.currentTarget;
+      if (textLength !== target.offsetWidth) {
+        setTextLength(Math.floor(target.offsetWidth));
       }
     }
 
-    function handleViewLayout(event: LayoutChangeEvent) {
-      if (toastHeight !== event.nativeEvent.layout.height) {
-        setToastHeight(event.nativeEvent.layout.height);
+    function handleViewLayout(event: React.SyntheticEvent<HTMLDivElement>) {
+      const target = event.currentTarget;
+      if (toastHeight !== target.offsetHeight) {
+        setToastHeight(target.offsetHeight);
       }
     }
   }
 );
 
-const styles = StyleSheet.create({
+const styles = {
   container: {
-    position: "absolute",
+    position: "fixed" as const,
     top: 0,
     zIndex: 100,
-    marginHorizontal: 24,
-    alignSelf: "center",
+    marginLeft: 24,
+    marginRight: 24,
+    alignSelf: "center" as const,
     width: "90%",
   },
   outerContainer: {
-    overflow: "hidden",
+    overflow: "hidden" as const,
     borderRadius: 40,
   },
   innerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
+    display: "flex",
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "flex-start" as const,
     padding: 12,
     borderRadius: 40,
     minHeight: 44,
@@ -552,13 +645,13 @@ const styles = StyleSheet.create({
   },
   text: {
     color: "white",
-    fontWeight: "600",
+    fontWeight: "600" as const,
     fontSize: 16,
     marginLeft: 12,
-    textAlign: "left",
+    textAlign: "left" as const,
     flex: 1,
-    flexWrap: "wrap",
+    flexWrap: "wrap" as const,
   },
-});
+};
 
 export default Toast;
