@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
@@ -18,6 +18,8 @@ import {
   X,
   Bell,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useAuthStore } from "@/backend/store/authStore";
@@ -36,9 +38,30 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [userExpandedState, setUserExpandedState] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const pathname = usePathname();
   const { logout, session } = useAuthStore();
+
+  // Auto-collapse sidebar when on settings page, unless user explicitly expanded it
+  useEffect(() => {
+    const isSettingsPage = pathname === "/dashboard/settings";
+
+    if (isSettingsPage && userExpandedState) {
+      // Auto-collapse when entering settings page
+      setSidebarExpanded(false);
+    } else if (!isSettingsPage && !userExpandedState) {
+      // Auto-expand when leaving settings page (if user didn't manually collapse)
+      setSidebarExpanded(true);
+    }
+  }, [pathname, userExpandedState]);
+
+  const toggleSidebar = () => {
+    const newState = !sidebarExpanded;
+    setSidebarExpanded(newState);
+    setUserExpandedState(newState);
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -92,16 +115,16 @@ export default function DashboardLayout({
                   <X className="h-6 w-6" />
                 </button>
               </div>
-              <nav className="mt-4">
+              <nav className="mt-4 px-2">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href;
                   return (
                     <Link
                       key={item.name}
                       href={item.href}
-                      className={`flex items-center px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center px-3 py-3 mb-1 text-sm font-medium transition-all duration-200 rounded-lg ${
                         isActive
-                          ? "bg-primary-subtle text-primary border-r-3 border-primary shadow-sm"
+                          ? "bg-primary text-white shadow-sm"
                           : "text-text-secondary hover:bg-surface hover:text-primary"
                       }`}
                       onClick={() => setSidebarOpen(false)}
@@ -118,67 +141,165 @@ export default function DashboardLayout({
 
         {/* Desktop sidebar */}
         <Suspense fallback={<div>Loading...</div>}>
-          <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-            <div className="flex flex-col flex-grow bg-white border-r border-border-light shadow-sm">
-              <div className="flex items-center h-16 px-4 border-b border-border-light">
-                <h1 className="text-xl font-bold text-gradient">Hivedemia</h1>
+          <div
+            className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-all duration-300 ease-in-out ${
+              sidebarExpanded ? "lg:w-64" : "lg:w-16"
+            }`}
+          >
+            <div className="flex flex-col flex-grow bg-white border-r border-border-light shadow-sm relative">
+              {/* Header */}
+              <div className="flex items-center justify-between h-16 px-4 border-b border-border-light">
+                {sidebarExpanded ? (
+                  <h1 className="text-xl font-bold text-gradient transition-opacity duration-200">
+                    Hivedemia
+                  </h1>
+                ) : (
+                  <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shadow-sm">
+                    <span className="text-white text-sm font-bold">H</span>
+                  </div>
+                )}
+
+                {/* Toggle Button */}
+                <button
+                  onClick={toggleSidebar}
+                  className="p-1.5 rounded-lg hover:bg-surface transition-all duration-200 text-text-tertiary hover:text-primary group"
+                  title={
+                    sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
+                  }
+                >
+                  {sidebarExpanded ? (
+                    <ChevronLeft className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                  )}
+                </button>
               </div>
-              <nav className="mt-4 flex-1">
+
+              {/* Navigation */}
+              <nav className="mt-4 flex-1 px-2">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href;
                   return (
                     <Link
                       key={item.name}
                       href={item.href}
-                      className={`flex items-center px-4 py-3 text-sm font-medium transition-all duration-200 hover-lift ${
+                      className={`flex items-center px-3 py-3 mb-1 text-sm font-medium transition-all duration-200 rounded-lg group relative ${
                         isActive
-                          ? "bg-primary-subtle text-primary border-r-3 border-primary shadow-sm"
+                          ? "bg-primary text-white shadow-sm"
                           : "text-text-secondary hover:bg-surface hover:text-primary"
                       }`}
+                      title={!sidebarExpanded ? item.name : undefined}
                     >
-                      <item.icon className="mr-3 h-5 w-5" />
-                      {item.name}
+                      <item.icon
+                        className={`h-5 w-5 flex-shrink-0 ${
+                          sidebarExpanded ? "mr-3" : "mx-auto"
+                        } transition-all duration-200`}
+                      />
+                      <span
+                        className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${
+                          sidebarExpanded
+                            ? "opacity-100 w-auto"
+                            : "opacity-0 w-0"
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+
+                      {/* Tooltip for collapsed state */}
+                      {!sidebarExpanded && (
+                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                          {item.name}
+                        </div>
+                      )}
                     </Link>
                   );
                 })}
               </nav>
-              <div className="border-t border-border-light p-4 bg-surface/50">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center shadow-sm">
-                    <span className="text-white text-sm font-medium">
-                      {userInitials}
-                    </span>
+
+              {/* User Section */}
+              <div className="border-t border-border-light p-3 bg-surface/50">
+                {sidebarExpanded ? (
+                  <>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center shadow-sm">
+                        <span className="text-white text-sm font-medium">
+                          {userInitials}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-text-primary truncate">
+                          {userName}
+                        </p>
+                        <p className="text-xs text-text-tertiary">Student</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Link
+                        href="/dashboard/settings"
+                        className={`flex items-center px-2 py-2 text-sm rounded-lg transition-all duration-200 ${
+                          pathname === "/dashboard/settings"
+                            ? "bg-primary text-white"
+                            : "text-text-secondary hover:text-primary hover:bg-surface"
+                        }`}
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </Link>
+                      <button
+                        onClick={confirmLogout}
+                        className="w-full flex items-center px-2 py-2 text-sm text-text-secondary hover:text-danger-red hover:bg-error-subtle transition-all duration-200 rounded-lg"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center shadow-sm mx-auto">
+                      <span className="text-white text-sm font-medium">
+                        {userInitials}
+                      </span>
+                    </div>
+
+                    <Link
+                      href="/dashboard/settings"
+                      className={`flex items-center justify-center p-2 text-sm rounded-lg transition-all duration-200 group relative ${
+                        pathname === "/dashboard/settings"
+                          ? "bg-primary text-white"
+                          : "text-text-secondary hover:text-primary hover:bg-surface"
+                      }`}
+                      title="Settings"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                        Settings
+                      </div>
+                    </Link>
+
+                    <button
+                      onClick={confirmLogout}
+                      className="w-full flex items-center justify-center p-2 text-sm text-text-secondary hover:text-danger-red hover:bg-error-subtle transition-all duration-200 rounded-lg group relative"
+                      title="Sign Out"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                        Sign Out
+                      </div>
+                    </button>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
-                      {userName}
-                    </p>
-                    <p className="text-xs text-text-tertiary">Student</p>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Link
-                    href="/dashboard/settings"
-                    className="flex items-center px-2 py-2 text-sm text-text-secondary hover:text-primary hover:bg-surface transition-all duration-200 rounded-lg"
-                  >
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </Link>
-                  <button
-                    onClick={confirmLogout}
-                    className="w-full flex items-center px-2 py-2 text-sm text-text-secondary hover:text-danger-red hover:bg-error-subtle transition-all duration-200 rounded-lg"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           </div>
         </Suspense>
 
         {/* Main content */}
-        <div className="lg:pl-64">
+        <div
+          className={`transition-all duration-300 ease-in-out ${
+            sidebarExpanded ? "lg:pl-64" : "lg:pl-16"
+          }`}
+        >
           {/* Top bar */}
           <div className="sticky top-0 z-40 glass-effect border-b border-border-light">
             <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
