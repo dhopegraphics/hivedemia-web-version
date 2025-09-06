@@ -1,6 +1,6 @@
 import { supabase } from "@/backend/supabase";
 import { Competition, CompetitionState } from "@/constants/CompetitionTypes";
-import { sendMessageToCohere } from "@/hooks/cohereApi";
+import { sendMessageToCohere } from "@/AiModelHooks/cohereApi";
 import { create } from "zustand";
 
 function sanitizeJsonString(str: string): string {
