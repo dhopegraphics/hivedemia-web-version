@@ -1,23 +1,43 @@
-import { BookOpen, Calendar, Brain, Users, TrendingUp, Clock, Award, ArrowRight, Plus } from "lucide-react"
-import Link from "next/link"
+"use client";
+
+import {
+  BookOpen,
+  Calendar,
+  Brain,
+  Users,
+  TrendingUp,
+  Clock,
+  Award,
+  ArrowRight,
+  Plus,
+} from "lucide-react";
+import Link from "next/link";
+import { useAuthStore } from "@/backend/store/authStore";
 
 export default function DashboardPage() {
+  const { session } = useAuthStore();
+
+  // Get user name from session, fallback to 'Student'
+  const userName = session?.user?.email?.split("@")[0] || "Student";
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-6 border border-primary/20">
+      <div className="gradient-primary-subtle rounded-xl p-6 border border-primary/20 surface-elevated">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-dark dark:text-white mb-2">Welcome back, John! 👋</h1>
-            <p className="text-gray dark:text-light-gray">
+            <h1 className="text-2xl font-bold text-text-primary mb-2">
+              Welcome back, {userName}! 👋
+            </h1>
+            <p className="text-text-secondary">
               You have 3 upcoming tasks and 2 quiz sessions scheduled for today.
             </p>
           </div>
           <div className="hidden md:block">
-            <div className="bg-white dark:bg-dark-light rounded-lg p-4 shadow-card">
+            <div className="bg-white rounded-lg p-4 shadow-card">
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">85%</div>
-                <div className="text-sm text-gray dark:text-light-gray">Study Progress</div>
+                <div className="text-sm text-text-tertiary">Study Progress</div>
               </div>
             </div>
           </div>
@@ -71,10 +91,16 @@ export default function DashboardPage() {
             >
               {item.icon}
             </div>
-            <h3 className="text-lg font-semibold text-dark dark:text-white mb-2">{item.title}</h3>
-            <p className="text-gray dark:text-light-gray text-sm mb-3">{item.description}</p>
+            <h3 className="text-lg font-semibold text-dark dark:text-white mb-2">
+              {item.title}
+            </h3>
+            <p className="text-gray dark:text-light-gray text-sm mb-3">
+              {item.description}
+            </p>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-primary font-medium">{item.count}</span>
+              <span className="text-xs text-primary font-medium">
+                {item.count}
+              </span>
               <ArrowRight className="h-4 w-4 text-gray group-hover:text-primary transition-colors" />
             </div>
           </Link>
@@ -85,16 +111,22 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-dark-light rounded-xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-dark dark:text-white">Study Streak</h3>
+            <h3 className="text-lg font-semibold text-dark dark:text-white">
+              Study Streak
+            </h3>
             <TrendingUp className="h-5 w-5 text-success" />
           </div>
           <div className="text-3xl font-bold text-primary mb-2">12 days</div>
-          <p className="text-sm text-gray dark:text-light-gray">Keep it up! 🔥</p>
+          <p className="text-sm text-gray dark:text-light-gray">
+            Keep it up! 🔥
+          </p>
         </div>
 
         <div className="bg-white dark:bg-dark-light rounded-xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-dark dark:text-white">Time Studied</h3>
+            <h3 className="text-lg font-semibold text-dark dark:text-white">
+              Time Studied
+            </h3>
             <Clock className="h-5 w-5 text-info-blue" />
           </div>
           <div className="text-3xl font-bold text-secondary mb-2">4.5h</div>
@@ -103,7 +135,9 @@ export default function DashboardPage() {
 
         <div className="bg-white dark:bg-dark-light rounded-xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-dark dark:text-white">Quiz Score</h3>
+            <h3 className="text-lg font-semibold text-dark dark:text-white">
+              Quiz Score
+            </h3>
             <Award className="h-5 w-5 text-warning" />
           </div>
           <div className="text-3xl font-bold text-warning mb-2">92%</div>
@@ -116,7 +150,9 @@ export default function DashboardPage() {
         {/* Upcoming Tasks */}
         <div className="bg-white dark:bg-dark-light rounded-xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-dark dark:text-white">Upcoming Tasks</h3>
+            <h3 className="text-lg font-semibold text-dark dark:text-white">
+              Upcoming Tasks
+            </h3>
             <Link
               href="/dashboard/planner"
               className="text-primary hover:text-primary-dark text-sm font-medium transition-colors"
@@ -145,23 +181,32 @@ export default function DashboardPage() {
                 subject: "History",
               },
             ].map((task, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-light dark:bg-dark rounded-lg">
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-light dark:bg-dark rounded-lg"
+              >
                 <div className="flex items-center space-x-3">
                   <div
                     className={`w-3 h-3 rounded-full ${
                       task.priority === "high"
                         ? "bg-danger-red"
                         : task.priority === "medium"
-                          ? "bg-warning"
-                          : "bg-success"
+                        ? "bg-warning"
+                        : "bg-success"
                     }`}
                   />
                   <div>
-                    <p className="text-sm font-medium text-dark dark:text-white">{task.title}</p>
-                    <p className="text-xs text-gray dark:text-light-gray">{task.subject}</p>
+                    <p className="text-sm font-medium text-dark dark:text-white">
+                      {task.title}
+                    </p>
+                    <p className="text-xs text-gray dark:text-light-gray">
+                      {task.subject}
+                    </p>
                   </div>
                 </div>
-                <span className="text-xs text-gray dark:text-light-gray">{task.due}</span>
+                <span className="text-xs text-gray dark:text-light-gray">
+                  {task.due}
+                </span>
               </div>
             ))}
           </div>
@@ -174,31 +219,42 @@ export default function DashboardPage() {
         {/* AI Recommendations */}
         <div className="bg-white dark:bg-dark-light rounded-xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-dark dark:text-white">AI Recommendations</h3>
+            <h3 className="text-lg font-semibold text-dark dark:text-white">
+              AI Recommendations
+            </h3>
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
           </div>
           <div className="space-y-4">
             <div className="p-4 bg-gradient-to-r from-primary/10 to-transparent rounded-lg border-l-4 border-primary">
-              <h4 className="font-medium text-dark dark:text-white mb-2">📚 Study Suggestion</h4>
+              <h4 className="font-medium text-dark dark:text-white mb-2">
+                📚 Study Suggestion
+              </h4>
               <p className="text-sm text-gray dark:text-light-gray">
-                Based on your quiz performance, consider reviewing Chapter 5 of your Chemistry textbook.
+                Based on your quiz performance, consider reviewing Chapter 5 of
+                your Chemistry textbook.
               </p>
             </div>
             <div className="p-4 bg-gradient-to-r from-secondary/10 to-transparent rounded-lg border-l-4 border-secondary">
-              <h4 className="font-medium text-dark dark:text-white mb-2">⏰ Schedule Optimization</h4>
+              <h4 className="font-medium text-dark dark:text-white mb-2">
+                ⏰ Schedule Optimization
+              </h4>
               <p className="text-sm text-gray dark:text-light-gray">
-                Your most productive study time is 2-4 PM. Consider scheduling important tasks during this window.
+                Your most productive study time is 2-4 PM. Consider scheduling
+                important tasks during this window.
               </p>
             </div>
             <div className="p-4 bg-gradient-to-r from-info-blue/10 to-transparent rounded-lg border-l-4 border-info-blue">
-              <h4 className="font-medium text-dark dark:text-white mb-2">🎯 Goal Tracking</h4>
+              <h4 className="font-medium text-dark dark:text-white mb-2">
+                🎯 Goal Tracking
+              </h4>
               <p className="text-sm text-gray dark:text-light-gray">
-                You're 80% towards your weekly study goal. Just 1 more hour to go!
+                You&apos;re 80% towards your weekly study goal. Just 1 more hour
+                to go!
               </p>
             </div>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
