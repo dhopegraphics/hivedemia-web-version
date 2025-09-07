@@ -19,25 +19,11 @@ export const useCourseStore = create((set, get) => ({
 
   initCourseTable: async () => {
     try {
-      await dbManager.executeWithRetry("courses.db", async (db) => {
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS courses (
-            id TEXT PRIMARY KEY,
-            createdby TEXT NOT NULL,
-            title TEXT NOT NULL,
-            code TEXT NOT NULL UNIQUE,
-            description TEXT,
-            professor TEXT,
-            color TEXT DEFAULT '#00DF82',
-            icon TEXT DEFAULT 'school',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP ,
-            fileCount INTEGER DEFAULT 0,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-          );
-        `);
-      });
+      // Initialize IndexedDB - this replaces SQLite table creation
+      await dbManager.initDB();
+      console.log("✅ IndexedDB initialized for courses");
     } catch (err) {
-      console.error("Failed to initialize courses table:", err);
+      console.error("Failed to initialize IndexedDB:", err);
     }
   },
 
@@ -65,8 +51,10 @@ export const useCourseStore = create((set, get) => ({
       const rows = await dbManager.executeWithRetry(
         "courses.db",
         async (db) => {
-          return await db.getAllAsync(
-            "SELECT * FROM courses ORDER BY created_at DESC"
+          // Get all courses from IndexedDB, sorted by created_at descending
+          const allCourses = await db.getAllAsync("courses");
+          return allCourses.sort(
+            (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
           );
         }
       );
@@ -95,58 +83,63 @@ export const useCourseStore = create((set, get) => ({
   addLocalCourse: async (course) => {
     try {
       const newId = generateUUID();
+      const newCourse = {
+        id: newId,
+        createdby: course.createdby,
+        title: course.title,
+        code: course.code,
+        description: course.description || "",
+        professor: course.professor || "",
+        color: course.color || "#00DF82",
+        icon: course.icon || "school",
+        fileCount: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
       await dbManager.executeWithRetry("courses.db", async (db) => {
-        await db.runAsync(
-          `INSERT INTO courses (id, createdby, title, code, description, professor, color, icon)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          newId,
-          course.createdby,
-          course.title,
-          course.code,
-          course.description,
-          course.professor,
-          course.color,
-          course.icon
-        );
+        // Add course to IndexedDB
+        await db.runAsync("courses", newCourse);
       });
 
-      const newCourse = { ...course, id: newId };
       set((state) => ({ courses: [newCourse, ...state.courses] }));
       return newCourse;
     } catch (err) {
       console.error("Failed to add local course:", err);
+      throw err;
     }
   },
 
   updateLocalCourse: async (courseId, updatedData) => {
     try {
-      // Update local database
+      // Get existing course first
+      const existingCourse = await dbManager.executeWithRetry(
+        "courses.db",
+        async (db) => {
+          return await db.getFirstAsync("courses", courseId);
+        }
+      );
+
+      if (!existingCourse) {
+        throw new Error("Course not found");
+      }
+
+      // Prepare updated course data
+      const updatedCourse = {
+        ...existingCourse,
+        ...updatedData,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update local IndexedDB
       await dbManager.executeWithRetry("courses.db", async (db) => {
-        await db.runAsync(
-          `UPDATE courses SET 
-           title = ?, code = ?, description = ?, professor = ?, 
-           color = ?, icon = ?, updated_at = CURRENT_TIMESTAMP 
-           WHERE id = ?`,
-          updatedData.title,
-          updatedData.code,
-          updatedData.description,
-          updatedData.professor,
-          updatedData.color,
-          updatedData.icon,
-          courseId
-        );
+        await db.runAsync("courses", updatedCourse);
       });
 
       // Update state
       set((state) => ({
         courses: state.courses.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                ...updatedData,
-                updated_at: new Date().toISOString(),
-              }
-            : course
+          course.id === courseId ? updatedCourse : course
         ),
       }));
 
@@ -188,10 +181,7 @@ export const useCourseStore = create((set, get) => ({
   getCourseById: async (courseId) => {
     try {
       return await dbManager.executeWithRetry("courses.db", async (db) => {
-        return await db.getFirstAsync(
-          "SELECT * FROM courses WHERE id = ?",
-          courseId
-        );
+        return await db.getFirstAsync("courses", courseId);
       });
     } catch (err) {
       console.error("Failed to get course by ID:", err);
@@ -207,7 +197,7 @@ export const useCourseStore = create((set, get) => ({
 
       const { data: remoteCourses, error } = await supabase
         .from("course")
-        .select("*") // Full data, not just 'code'
+        .select("*")
         .eq("createdby", user.id);
 
       if (error) {
@@ -217,7 +207,7 @@ export const useCourseStore = create((set, get) => ({
 
       await dbManager.executeWithRetry("courses.db", async (db) => {
         // Load local course codes only
-        const localCourses = await db.getAllAsync("SELECT code FROM courses");
+        const localCourses = await db.getAllAsync("courses");
         const localCodes = localCourses.map((c) => c.code);
 
         const newCourses = remoteCourses.filter(
@@ -225,24 +215,26 @@ export const useCourseStore = create((set, get) => ({
         );
 
         for (const course of newCourses) {
-          await db.runAsync(
-            `INSERT INTO courses (id, createdby, title, code, description, professor, color, icon, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            course.id,
-            course.createdby,
-            course.title,
-            course.code,
-            course.description,
-            course.professor,
-            course.color ?? "#00DF82",
-            course.icon ?? "school",
-            course.created_at
-          );
+          const courseData = {
+            id: course.id,
+            createdby: course.createdby,
+            title: course.title,
+            code: course.code,
+            description: course.description || "",
+            professor: course.professor || "",
+            color: course.color ?? "#00DF82",
+            icon: course.icon ?? "school",
+            fileCount: 0,
+            created_at: course.created_at,
+            updated_at: course.updated_at || course.created_at,
+          };
+
+          await db.runAsync("courses", courseData);
         }
       });
 
       // Update state after syncing
-      const all = await get().loadLocalCourses();
+      const all = await get().loadLocalCourses(true);
       return all;
     } catch (err) {
       console.error("Failed to sync from Supabase to local DB:", err);
@@ -280,6 +272,7 @@ export const useCourseStore = create((set, get) => ({
             color,
             icon,
             created_at,
+            updated_at,
           }) => ({
             id,
             createdby,
@@ -290,6 +283,7 @@ export const useCourseStore = create((set, get) => ({
             color,
             icon,
             created_at,
+            updated_at: updated_at || created_at,
           })
         );
 
@@ -319,8 +313,9 @@ export const useCourseStore = create((set, get) => ({
       const localCourses = await dbManager.executeWithRetry(
         "courses.db",
         async (db) => {
-          return await db.getAllAsync(
-            "SELECT * FROM courses ORDER BY created_at DESC"
+          const courses = await db.getAllAsync("courses");
+          return courses.sort(
+            (a, b) => new Date(b.created_at) - new Date(a.created_at)
           );
         }
       );
@@ -379,17 +374,23 @@ export const useCourseStore = create((set, get) => ({
           const fileCount = countsMap.get(courseId) || 0;
           const updatedAt = updatesMap.get(courseId) ?? null;
 
-          await db.runAsync(
-            `UPDATE courses SET fileCount = ?, updated_at = ? WHERE id = ?`,
-            fileCount,
-            updatedAt,
-            courseId
-          );
+          // Get existing course and update it
+          const existingCourse = await db.getFirstAsync("courses", courseId);
+          if (existingCourse) {
+            const updatedCourse = {
+              ...existingCourse,
+              fileCount: fileCount,
+              updated_at:
+                updatedAt ||
+                existingCourse.updated_at ||
+                existingCourse.created_at,
+            };
+            await db.runAsync("courses", updatedCourse);
+          }
         }
       });
 
       // Refresh in-memory state with force reload to ensure updated file counts
-
       const enrichedCourses = await get().loadLocalCourses(true);
 
       return enrichedCourses;
