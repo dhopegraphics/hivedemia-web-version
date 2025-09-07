@@ -5,7 +5,7 @@ export const GOOGLE_DRIVE_CONFIG = {
   // Google Apps Script Web App URL (you'll create this)
   APPS_SCRIPT_URL:
     process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL ||
-    "YOUR_APPS_SCRIPT_URL_HERE",
+    "https://script.google.com/macros/s/AKfycbzDdWUegPAjB5ER4JzatMuQ6veiRBBWdS9Skj2SWDAayXH8D0OFdS3--6LD296SFlus/exec",
 
   // Alternative: Direct API with your own backend
   BACKEND_UPLOAD_URL: process.env.NEXT_PUBLIC_BACKEND_UPLOAD_URL || "",
