@@ -2,15 +2,33 @@
 // Same function names and signatures as the original Supabase version
 
 import { supabase } from "@/backend/supabase";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect } from "react";
 import { googleDriveAPI } from "./googleDriveAPI";
+
+// Web Storage utility to replace AsyncStorage
+const webStorage = {
+  async getItem(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      console.error("webStorage.getItem error:", error);
+      return null;
+    }
+  },
+  async setItem(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.error("webStorage.setItem error:", error);
+    }
+  },
+};
 
 export const useLoadFiles = ({ id, setFiles }) => {
   useEffect(() => {
     const loadFiles = async () => {
       try {
-        const cache = await AsyncStorage.getItem(`course-files-${id}`);
+        const cache = await webStorage.getItem(`course-files-${id}`);
         if (cache) setFiles(JSON.parse(cache));
 
         // Still use Supabase authentication
@@ -25,8 +43,13 @@ export const useLoadFiles = ({ id, setFiles }) => {
           .eq("course_id", id)
           .eq("user_id", user_id);
 
+        if (error) {
+          console.error("Failed to load files from database:", error);
+          return;
+        }
+
         if (data) {
-          const localCache = await AsyncStorage.getItem(`course-files-${id}`);
+          const localCache = await webStorage.getItem(`course-files-${id}`);
           const localFiles = localCache ? JSON.parse(localCache) : [];
 
           const formatted = await Promise.all(
@@ -73,7 +96,7 @@ export const useLoadFiles = ({ id, setFiles }) => {
           );
 
           setFiles(formatted);
-          await AsyncStorage.setItem(
+          await webStorage.setItem(
             `course-files-${id}`,
             JSON.stringify(formatted)
           );
@@ -84,5 +107,5 @@ export const useLoadFiles = ({ id, setFiles }) => {
     };
 
     loadFiles();
-  }, [id]);
+  }, [id, setFiles]);
 };
