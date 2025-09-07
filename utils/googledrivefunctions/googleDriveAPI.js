@@ -1,9 +1,58 @@
 // Google Drive API Utilities
 // Proxy-based uploads via Google Apps Script or backend
 
-import * as FileSystem from "expo-file-system";
 import { googleDriveAuth } from "./googleDriveAuth";
 import { GOOGLE_DRIVE_CONFIG, MIME_TYPES } from "./googleDriveConfig";
+
+// Web-compatible file reading utility
+class WebFileSystem {
+  static async readAsStringAsync(file, options = {}) {
+    return new Promise((resolve, reject) => {
+      if (typeof file === "string") {
+        // If it's already a base64 string or data URL, extract the base64 part
+        if (file.startsWith("data:")) {
+          const base64Data = file.split(",")[1];
+          resolve(base64Data);
+          return;
+        }
+        // If it's a URL, fetch it
+        fetch(file)
+          .then((response) => response.blob())
+          .then((blob) => this.blobToBase64(blob))
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+
+      // If it's a File or Blob object
+      if (file instanceof File || file instanceof Blob) {
+        this.blobToBase64(file).then(resolve).catch(reject);
+        return;
+      }
+
+      reject(new Error("Unsupported file type"));
+    });
+  }
+
+  static blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        // Extract base64 part from data URL
+        const base64Data = dataUrl.split(",")[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // For compatibility with expo-file-system API
+  static EncodingType = {
+    Base64: "base64",
+  };
+}
 
 class GoogleDriveAPI {
   // Upload file to Google Drive via proxy with structured folders
@@ -19,13 +68,13 @@ class GoogleDriveAPI {
       // Check if proxy is configured
       if (!googleDriveAuth.isConfigured()) {
         throw new Error(
-          "Google Apps Script URL is not configured. Please set EXPO_PUBLIC_GOOGLE_APPS_SCRIPT_URL in your environment."
+          "Google Apps Script URL is not configured. Please set NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL in your environment."
         );
       }
 
       // Read file as base64
-      const base64Data = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.Base64,
+      const base64Data = await WebFileSystem.readAsStringAsync(fileUri, {
+        encoding: WebFileSystem.EncodingType.Base64,
       });
 
       // Build folder structure path
