@@ -150,11 +150,11 @@ export default function CourseForm({
               Course Icon
             </label>
             <div className="grid grid-cols-6 gap-2 mb-3">
-              {COURSE_ICONS.map((iconName) => {
+              {COURSE_ICONS.map((iconName, index) => {
                 const IconComponent = getIconComponent(iconName);
                 return (
                   <button
-                    key={iconName}
+                    key={`icon-${index}-${iconName}`}
                     type="button"
                     onClick={() =>
                       setFormData((prev) => ({ ...prev, icon: iconName }))
@@ -178,9 +178,9 @@ export default function CourseForm({
               Course Color
             </label>
             <div className="grid grid-cols-8 gap-2">
-              {COURSE_COLORS.map((color) => (
+              {COURSE_COLORS.map((color, index) => (
                 <button
-                  key={color}
+                  key={`color-${index}-${color}`}
                   type="button"
                   onClick={() => setFormData((prev) => ({ ...prev, color }))}
                   className={`w-8 h-8 rounded-lg border-2 transition-all ${

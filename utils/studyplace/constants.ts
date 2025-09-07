@@ -41,12 +41,12 @@ export const ICON_COMPONENTS = {
 export const COURSE_COLORS = [
   "#00df82", // Primary green
   "#8b5cf6", // Purple
-  "#f59e0b", // Orange
+  "#f59e0b", // Amber
   "#ef4444", // Red
   "#3b82f6", // Blue
   "#10b981", // Emerald
   "#f97316", // Orange
-  "#8b5cf6", // Violet
+  "#ec4899", // Pink
   "#06b6d4", // Cyan
   "#84cc16", // Lime
 ];

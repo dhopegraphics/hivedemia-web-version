@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
+import Image from "next/image";
 import {
   Home,
   Calendar,
@@ -39,28 +40,28 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const [userExpandedState, setUserExpandedState] = useState(true);
+  const [manualToggle, setManualToggle] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const pathname = usePathname();
   const { logout, session } = useAuthStore();
 
-  // Auto-collapse sidebar when on settings page, unless user explicitly expanded it
+  // Auto-collapse sidebar when on settings page, only if user hasn't manually toggled
   useEffect(() => {
+    if (manualToggle) return; // Don't auto-manage if user has manually toggled
+
     const isSettingsPage = pathname === "/dashboard/settings";
 
-    if (isSettingsPage && userExpandedState) {
-      // Auto-collapse when entering settings page
+    if (isSettingsPage) {
       setSidebarExpanded(false);
-    } else if (!isSettingsPage && !userExpandedState) {
-      // Auto-expand when leaving settings page (if user didn't manually collapse)
+    } else {
       setSidebarExpanded(true);
     }
-  }, [pathname, userExpandedState]);
+  }, [pathname, manualToggle]);
 
   const toggleSidebar = () => {
     const newState = !sidebarExpanded;
     setSidebarExpanded(newState);
-    setUserExpandedState(newState);
+    setManualToggle(true); // Mark as manually toggled
   };
 
   const handleLogout = async () => {
@@ -112,47 +113,60 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-surface">
         {/* Mobile sidebar */}
         <Suspense fallback={<div>Loading...</div>}>
-          <div
-            className={`fixed inset-0 z-50 lg:hidden ${
-              sidebarOpen ? "block" : "hidden"
-            }`}
-          >
-            <div
-              className="fixed inset-0 bg-black/20 backdrop-blur-sm"
-              onClick={() => setSidebarOpen(false)}
-            />
-            <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-card-elevated">
-              <div className="flex items-center justify-between p-4 border-b border-border-light">
-                <h1 className="text-xl font-bold text-gradient">Hivedemia</h1>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="text-text-tertiary hover:text-primary transition-colors p-1 rounded-lg hover:bg-surface"
-                >
-                  <X className="h-6 w-6" />
-                </button>
+          {sidebarOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden">
+              <div
+                className="fixed inset-0 bg-black/20 backdrop-blur-sm"
+                onClick={() => setSidebarOpen(false)}
+              />
+              <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-card-elevated">
+                <div className="flex items-center justify-between p-4 border-b border-border-light">
+                  <div className="flex items-center">
+                    <Image
+                      src="/images/var-2-primary.png"
+                      alt="Hivedemia"
+                      width={120}
+                      height={40}
+                      className="h-8 w-auto"
+                    />
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSidebarOpen(false);
+                    }}
+                    className="text-text-tertiary hover:text-primary transition-colors p-1 rounded-lg hover:bg-surface"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                <nav className="mt-4 px-2">
+                  {navigation.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`flex items-center px-3 py-3 mb-1 text-sm font-medium transition-all duration-200 rounded-lg ${
+                          isActive
+                            ? "bg-primary text-white shadow-sm"
+                            : "text-text-secondary hover:bg-surface hover:text-primary"
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSidebarOpen(false);
+                        }}
+                      >
+                        <item.icon className="mr-3 h-5 w-5" />
+                        {item.name}
+                      </Link>
+                    );
+                  })}
+                </nav>
               </div>
-              <nav className="mt-4 px-2">
-                {navigation.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={`flex items-center px-3 py-3 mb-1 text-sm font-medium transition-all duration-200 rounded-lg ${
-                        isActive
-                          ? "bg-primary text-white shadow-sm"
-                          : "text-text-secondary hover:bg-surface hover:text-primary"
-                      }`}
-                      onClick={() => setSidebarOpen(false)}
-                    >
-                      <item.icon className="mr-3 h-5 w-5" />
-                      {item.name}
-                    </Link>
-                  );
-                })}
-              </nav>
             </div>
-          </div>
+          )}
         </Suspense>
 
         {/* Desktop sidebar */}
@@ -166,12 +180,24 @@ export default function DashboardLayout({
               {/* Header */}
               <div className="flex items-center justify-between h-16 px-4 border-b border-border-light">
                 {sidebarExpanded ? (
-                  <h1 className="text-xl font-bold text-gradient transition-opacity duration-200">
-                    Hivedemia
-                  </h1>
+                  <div className="flex items-center transition-opacity duration-200">
+                    <Image
+                      src="/images/var-2-primary.png"
+                      alt="Hivedemia"
+                      width={120}
+                      height={40}
+                      className="h-8 w-auto"
+                    />
+                  </div>
                 ) : (
-                  <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center shadow-sm">
-                    <span className="text-white text-sm font-bold">H</span>
+                  <div className="w-8 h-8 flex items-center justify-center">
+                    <Image
+                      src="/images/icon.png"
+                      alt="Hivedemia"
+                      width={32}
+                      height={32}
+                      className="h-8 w-8"
+                    />
                   </div>
                 )}
 
