@@ -1,5 +1,5 @@
 import { dbManager } from "@/backend/services/DatabaseManager";
-import { sendMessageToGemini } from "@/AiModelHooks/geminiApi";
+import { sendMessageToGemini } from "@/hooks/AiModelHooks/geminiApi";
 import { create } from "zustand";
 
 type AiSuggestionType = {

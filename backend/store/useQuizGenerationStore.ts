@@ -1,5 +1,5 @@
 import { dbManager } from "@/backend/services/DatabaseManager";
-import { sendMessageToCohere } from "@/AiModelHooks/cohereApi";
+import { sendMessageToCohere } from "@/hooks/AiModelHooks/cohereApi";
 import { create } from "zustand";
 
 // Types

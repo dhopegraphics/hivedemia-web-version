@@ -1,6 +1,5 @@
 import { useAuthStore } from "@/backend/store/authStore";
-import HubtelCheckoutWebView from "@/components/Subscription/HubtelCheckoutWebView";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AsyncStorage } from "@/utils/browserStorage";
 import React, {
   createContext,
   ReactNode,
@@ -10,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert } from "react-native";
+import { toast } from "sonner";
 import { supabase } from "../backend/supabase";
 
 // Storage keys for consistent cache management
@@ -51,6 +50,31 @@ export interface PaymentConfig {
   branding: "enabled" | "disabled";
 }
 
+export interface PaymentData {
+  transactionId?: string;
+  clientReference: string;
+  subscriptionId?: string;
+  planId: string;
+  phone?: string;
+  amount: number;
+  status: string;
+  hubtelResponse?: HubtelPaymentData;
+  userId: string;
+}
+
+export interface HubtelPaymentData {
+  transactionId?: string;
+  checkoutId?: string;
+  status?: string;
+  amount?: number;
+  customerPhoneNumber?: string;
+  [key: string]: unknown; // For additional Hubtel response fields
+}
+
+export interface AuthState {
+  user: { id: string; email: string } | null;
+}
+
 interface SubscriptionContextType {
   // State
   currentSubscription: UserSubscription | null;
@@ -70,7 +94,7 @@ interface SubscriptionContextType {
   initializePayment: (
     plan: SubscriptionPlan,
     customerPhone: string
-  ) => Promise<{ paymentUrl: any; clientReference: string }>;
+  ) => Promise<{ paymentUrl: string; clientReference: string }>;
   cancelSubscription: () => Promise<void>;
   renewSubscription: () => Promise<void>;
   checkSubscriptionStatus: () => Promise<void>;
@@ -138,9 +162,6 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
   // Modal state
   const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [renewalPlan, setRenewalPlan] = useState<SubscriptionPlan | null>(null);
-  const [showDirectDebitSetup, setShowDirectDebitSetup] = useState(false);
-  const [showWebView, setShowWebView] = useState(false);
-  const [paymentUrl] = useState("");
 
   // Control flags
   const isInitializedRef = useRef(false);
@@ -474,9 +495,10 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
 
   // Listen for auth state changes to load subscription when user becomes available
   useEffect(() => {
-    let previousUser = useAuthStore.getState().user;
+    let previousUser: { id: string; email: string } | null =
+      useAuthStore.getState().user;
 
-    const unsubscribe = useAuthStore.subscribe((state) => {
+    const unsubscribe = useAuthStore.subscribe((state: AuthState) => {
       const currentUser = state.user;
 
       if (currentUser && !previousUser) {
@@ -567,17 +589,16 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
       };
       await saveSubscriptionToStorage(expiredSubscription);
 
-      Alert.alert(
-        "Subscription Expired",
-        "Your subscription has expired. Please renew to continue enjoying premium features.",
-        [
-          {
-            text: "Renew Now",
-            onPress: () => {},
+      toast.error("Subscription Expired", {
+        description:
+          "Your subscription has expired. Please renew to continue enjoying premium features.",
+        action: {
+          label: "Renew Now",
+          onClick: () => {
+            // Add renewal action here
           },
-          { text: "Later", style: "cancel" },
-        ]
-      );
+        },
+      });
     }
   }, [currentSubscription, saveSubscriptionToStorage]);
 
@@ -652,7 +673,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
 
       return subscription;
     } catch (error) {
-      Alert.alert("Failed to create pending transaction", `${error}`);
+      toast.error("Failed to create pending transaction", {
+        description: `${error}`,
+      });
 
       throw error;
     }
@@ -693,9 +716,16 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
 
       if (error) throw new Error(error.message);
 
+      // Open payment URL in a new tab for web
+      if (data.paymentUrl && typeof window !== "undefined") {
+        window.open(data.paymentUrl, "_blank", "noopener,noreferrer");
+      }
+
       return { paymentUrl: data.paymentUrl, clientReference: clientRef };
     } catch (error) {
-      Alert.alert("Payment Error", `${error || "An error occurred"}`);
+      toast.error("Payment Error", {
+        description: `${error || "An error occurred"}`,
+      });
       setPaymentInProgress(false);
       throw error;
     }
@@ -703,7 +733,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
 
   const handlePaymentSuccess = async (
     plan: SubscriptionPlan,
-    paymentData: any
+    paymentData: PaymentData
   ) => {
     try {
       const { error: subError } = await supabase
@@ -761,30 +791,25 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
       setPendingPlanId(null);
       setPendingPhone(null);
 
-      Alert.alert(
-        "Payment Successful!",
-        `Your ${plan.name} subscription is now active! You now have access to all premium features.`,
-        [
-          {
-            text: "Great!",
-            style: "default",
-            onPress: () => {
-              loadUserSubscription();
-            },
+      toast.success("Payment Successful!", {
+        description: `Your ${plan.name} subscription is now active! You now have access to all premium features.`,
+        action: {
+          label: "Great!",
+          onClick: () => {
+            loadUserSubscription();
           },
-        ]
-      );
+        },
+      });
 
       return updatedSubscription;
     } catch (error) {
       console.error("Failed to process successful payment:", error);
 
       // Show error to user but don't fail the payment
-      Alert.alert(
-        "Payment Processed",
-        "Your payment was successful but there was an issue updating your account. Please contact support if you don't see your subscription activated shortly.",
-        [{ text: "OK" }]
-      );
+      toast.warning("Payment Processed", {
+        description:
+          "Your payment was successful but there was an issue updating your account. Please contact support if you don't see your subscription activated shortly.",
+      });
 
       throw error;
     }
@@ -847,7 +872,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
 
   const handleSuccessfulPayment = async (
     clientReference: string,
-    hubtelPaymentData: any
+    hubtelPaymentData: HubtelPaymentData
   ) => {
     try {
       const {
@@ -1036,10 +1061,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
         stack: error instanceof Error ? error.stack : undefined,
       };
 
-      Alert.alert(
-        "Cancellation Failed",
-        `Failed to cancel your subscription. Please try again later. Error: ${errorDetails}`
-      );
+      toast.error("Cancellation Failed", {
+        description: `Failed to cancel your subscription. Please try again later. Error: ${errorDetails}`,
+      });
 
       throw error; // Re-throw for UI component to handle
     }
@@ -1063,7 +1087,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
       setShowRenewalModal(true);
     } catch (error) {
       console.error("Failed to renew subscription:", error);
-      Alert.alert("Error", "Failed to renew subscription. Please try again.");
+      toast.error("Error", {
+        description: "Failed to renew subscription. Please try again.",
+      });
     }
   };
 
@@ -1075,7 +1101,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
         setShowRenewalModal(false);
         setRenewalPlan(null);
       } catch (error) {
-        Alert.alert("Error", `Failed to renew subscription: ${error}`);
+        toast.error("Error", {
+          description: `Failed to renew subscription: ${error}`,
+        });
       }
     }
   };
@@ -1136,43 +1164,20 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
         throw new Error("Phone number required for auto-renewal");
       }
 
-      // Check if direct debit is already set up
-      const { DirectDebitManager } = await import(
-        "@/backend/services/DirectDebitManager"
-      );
-      const directDebitStatus = await DirectDebitManager.checkDirectDebitStatus(
-        user.id
-      );
+      // TODO: Implement DirectDebitManager for Next.js
+      // For now, just show a toast that this feature is not available
+      toast.info("Auto-Renew Feature", {
+        description:
+          "Auto-renewal feature is coming soon. Please manually renew when needed.",
+      });
 
-      if (directDebitStatus.hasApprovedDirectDebit) {
-        // Direct debit is already set up, just enable auto-renewal
-        const result = await DirectDebitManager.enableAutoRenewal(user.id);
-
-        if (!result.success) {
-          throw new Error(result.error || "Failed to enable auto-renewal");
-        }
-
-        // Update local subscription state
-        const updatedSubscription = {
-          ...currentSubscription,
-          autoRenew: true,
-          paymentMethod: "direct_debit",
-        };
-
-        await saveSubscriptionToStorage(updatedSubscription);
-        setCurrentSubscription(updatedSubscription);
-
-        Alert.alert(
-          "Auto-Renew Enabled",
-          "Your subscription will now automatically renew at the end of the current period."
-        );
-      } else {
-        // Show Direct Debit setup UI
-        setShowDirectDebitSetup(true);
-        setPendingPhone(profile.phone);
-      }
+      // Show Direct Debit setup UI (commented out until DirectDebitManager is implemented)
+      // setShowDirectDebitSetup(true);
+      // setPendingPhone(profile.phone);
     } catch (error) {
-      Alert.alert("Error", `Failed to enable auto-renew: ${error}`);
+      toast.error("Error", {
+        description: `Failed to enable auto-renew: ${error}`,
+      });
     }
   };
 
@@ -1196,7 +1201,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
       syncInProgressRef.current = false;
     } catch (error) {
       console.error("❌ Failed to clear user data:", error);
-      Alert.alert("Error", `Failed to clear user data: ${error}`);
+      toast.error("Error", {
+        description: `Failed to clear user data: ${error}`,
+      });
     }
   };
 
@@ -1232,15 +1239,6 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
   return (
     <SubscriptionContext.Provider value={value}>
       {children}
-
-      {showWebView && paymentUrl && (
-        <HubtelCheckoutWebView
-          visible={showWebView}
-          onClose={() => setShowWebView(false)}
-          paymentUrl={paymentUrl}
-          callbackUrl={PAYMENT_CONFIG.callbackUrl}
-        />
-      )}
     </SubscriptionContext.Provider>
   );
 };

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ClientOnly } from "@/components/ClientOnly";
+import { SubscriptionProvider } from "@/context/useSubscriptionContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ClientOnly>
-          <SessionProvider>{children}</SessionProvider>
+          <SessionProvider>
+            <SubscriptionProvider>{children}</SubscriptionProvider>
+          </SessionProvider>
           <Toaster />
         </ClientOnly>
       </body>

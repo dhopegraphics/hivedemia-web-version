@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { dbManager } from "@/backend/services/DatabaseManager";
-import { sendMessageToCohere } from "@/AiModelHooks/cohereApi";
+import { sendMessageToCohere } from "@/hooks/AiModelHooks/cohereApi";
 
 function extractJsonFromResponse(text: string): string {
   const match = text.match(/```json\s*([\s\S]*?)\s*```/);

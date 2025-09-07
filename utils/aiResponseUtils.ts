@@ -3,8 +3,8 @@ import {
   analyzeDocument,
   generateQuestionsFromSamples,
   prepareFileSource,
-} from "@/AiModelHooks/claude";
-import { sendMessageToCohere } from "@/AiModelHooks/cohereApi";
+} from "@/hooks/AiModelHooks/claude";
+import { sendMessageToCohere } from "@/hooks/AiModelHooks/cohereApi";
 import * as FileSystem from "expo-file-system";
 import {
   ChunkingOptions,
