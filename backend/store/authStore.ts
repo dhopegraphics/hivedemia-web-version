@@ -246,19 +246,75 @@ export const useAuthStore = create<AuthState>((set, get) => {
             set({ session: null, user: null });
             return;
           }
+
+          console.log("🔄 Setting session for user:", session.user.email);
+
+          // Store session in localStorage first
           await webSecureStorage.setItemAsync(
             "session",
             JSON.stringify(session)
           );
+
+          // Update state immediately for UI responsiveness
           set({ session, user: session.user });
+
+          // Try to sync with Supabase but don't block on it
+          if (session.access_token && session.refresh_token) {
+            try {
+              // Add timeout to prevent hanging
+              const syncPromise = supabase.auth.setSession({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+              });
+
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Supabase sync timeout")),
+                  5000
+                )
+              );
+
+              const { error } = await Promise.race([
+                syncPromise,
+                timeoutPromise,
+              ]);
+
+              if (error) {
+                console.warn("Failed to sync session with Supabase:", error);
+              } else {
+                console.log("✅ Session synced with Supabase");
+              }
+            } catch (syncError) {
+              console.warn(
+                "Supabase session sync failed (non-critical):",
+                syncError
+              );
+              // Continue anyway since we have the session stored locally
+            }
+          }
+
+          console.log("✅ Session set and stored");
         } else {
-          await webSecureStorage.deleteItemAsync("session");
+          console.log("🔄 Clearing session...");
+
+          // Clear state first for immediate UI update
           set({ session: null, user: null });
-          set({ session: null, user: null });
+
+          // Clear storage and Supabase in background
+          try {
+            await Promise.all([
+              webSecureStorage.deleteItemAsync("session"),
+              supabase.auth.signOut(),
+            ]);
+          } catch (clearError) {
+            console.warn("Error during session cleanup:", clearError);
+          }
+
+          console.log("✅ Session cleared");
         }
       } catch (error) {
         console.error("Error setting session:", error);
-        // Fallback to clear state on error
+        // Ensure state is consistent on error
         set({ session: null, user: null });
       }
     },
@@ -288,6 +344,48 @@ export const useAuthStore = create<AuthState>((set, get) => {
           return;
         }
 
+        console.log("🔄 Starting session hydration...");
+
+        // First, try to get session from Supabase (most reliable)
+        const {
+          data: { session: supabaseSession },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (!error && supabaseSession && supabaseSession.user?.email) {
+          console.log("✅ Found active Supabase session");
+
+          // Create compatible session object
+          const compatibleSession = {
+            access_token: supabaseSession.access_token,
+            refresh_token: supabaseSession.refresh_token,
+            user: {
+              id: supabaseSession.user.id,
+              email: supabaseSession.user.email,
+            },
+            expires_at: supabaseSession.expires_at || Date.now() / 1000 + 3600,
+          };
+
+          // Store in localStorage and state
+          await webSecureStorage.setItemAsync(
+            "session",
+            JSON.stringify(compatibleSession)
+          );
+          set({ session: compatibleSession, user: compatibleSession.user });
+
+          // Get onboarding status
+          const onboarded = await webSecureStorage.getItemAsync(
+            "onboardingComplete"
+          );
+          const hasOnboarded = onboarded === "true";
+          set({ hasCompletedOnboarding: hasOnboarded });
+
+          console.log("✅ Session hydrated from Supabase");
+          set({ hydrated: true });
+          return;
+        }
+
+        // Fallback to localStorage if no Supabase session
         const [rawSession, onboarded] = await Promise.all([
           webSecureStorage.getItemAsync("session"),
           webSecureStorage.getItemAsync("onboardingComplete"),
@@ -309,7 +407,27 @@ export const useAuthStore = create<AuthState>((set, get) => {
               // Check if session is expired
               const now = Date.now() / 1000; // Convert to seconds
               if (parsed.expires_at > now) {
-                set({ session: parsed, user: parsed.user });
+                console.log(
+                  "✅ Found valid stored session, attempting to restore Supabase session..."
+                );
+
+                // Try to restore Supabase session
+                const { error: restoreError } = await supabase.auth.setSession({
+                  access_token: parsed.access_token,
+                  refresh_token: parsed.refresh_token,
+                });
+
+                if (!restoreError) {
+                  set({ session: parsed, user: parsed.user });
+                  console.log("✅ Supabase session restored successfully");
+                } else {
+                  console.warn(
+                    "Failed to restore Supabase session:",
+                    restoreError
+                  );
+                  await webSecureStorage.deleteItemAsync("session");
+                  set({ session: null, user: null });
+                }
               } else {
                 console.log("Stored session has expired, clearing...");
                 await webSecureStorage.deleteItemAsync("session");
@@ -327,6 +445,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
             await webSecureStorage.deleteItemAsync("session");
             set({ session: null, user: null });
           }
+        } else {
+          console.log("No stored session found");
         }
 
         // Only set onboarding as completed if we have a valid value
@@ -347,6 +467,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({ session: null, user: null, hasCompletedOnboarding: false });
       } finally {
         set({ hydrated: true });
+        console.log("🏁 Session hydration completed");
       }
     },
 
@@ -417,13 +538,26 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     logout: async () => {
       try {
+        console.log("🔄 Starting logout process...");
+
+        // Clear state first to immediately reflect logout in UI
+        set({ session: null, user: null, hasCompletedOnboarding: false });
+
+        // Sign out from Supabase
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn("Supabase signOut error:", error);
+        } else {
+          console.log("✅ Supabase signOut successful");
+        }
+
+        // Clear all local storage
         await Promise.all([
           webSecureStorage.deleteItemAsync("session"),
-          webSecureStorage.deleteItemAsync("onboardingComplete"), // Clear onboarding state on logout
-          webSecureStorage.deleteItemAsync("app_install_marker"), // Force fresh state on next login
-          supabase.auth.signOut(),
+          webSecureStorage.deleteItemAsync("onboardingComplete"),
+          webSecureStorage.deleteItemAsync("app_install_marker"),
         ]);
-        set({ session: null, user: null, hasCompletedOnboarding: false });
+
         console.log("✅ Logout complete - all auth data cleared");
       } catch (error) {
         console.error("Error during logout:", error);

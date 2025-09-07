@@ -5,9 +5,7 @@ import {
   LoginCredentials,
   SignupData,
 } from "@/backend/services/authService";
-import { useAuthStore } from "@/backend/store/authStore";
 import { useToast } from "./use-toast";
-import { supabase } from "@/backend/supabase";
 
 export interface UseAuthReturn {
   // Login
@@ -37,7 +35,6 @@ export function useAuth(): UseAuthReturn {
   const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
-  const { setSession } = useAuthStore();
   const { toast } = useToast();
 
   const clearError = () => setError(null);
@@ -47,9 +44,11 @@ export function useAuth(): UseAuthReturn {
     setError(null);
 
     try {
+      console.log("🔄 Starting sign in process...");
       const result = await AuthService.signIn(credentials);
 
       if (result.error) {
+        console.log("❌ Sign in failed:", result.error);
         setError(result.error);
 
         if (result.needsVerification) {
@@ -71,37 +70,28 @@ export function useAuth(): UseAuthReturn {
       }
 
       if (result.user) {
-        // Get the actual session from Supabase
-        const { data: sessionData } = await supabase.auth.getSession();
+        console.log("✅ Sign in successful, user:", result.user.email);
 
-        if (sessionData?.session && sessionData.session.user?.email) {
-          // Create a compatible session object for the auth store
-          const compatibleSession = {
-            access_token: sessionData.session.access_token,
-            refresh_token: sessionData.session.refresh_token,
-            user: {
-              id: sessionData.session.user.id,
-              email: sessionData.session.user.email,
-            },
-            expires_at:
-              sessionData.session.expires_at || Date.now() / 1000 + 3600,
-          };
-
-          await setSession(compatibleSession);
-        }
+        // The Supabase auth state listener should automatically handle session management
+        // No need to manually set session here to avoid conflicts
 
         toast({
           title: "Welcome back!",
           description: "You have successfully signed in.",
         });
 
-        // Redirect to dashboard
-        router.push("/dashboard");
+        console.log("🔄 Redirecting to dashboard...");
+        // Use setTimeout to ensure toast shows before redirect
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 100);
+
         return true;
       }
 
       return false;
     } catch (err) {
+      console.error("Sign in error:", err);
       const errorMessage =
         err instanceof Error ? err.message : "An unexpected error occurred";
       setError(errorMessage);
@@ -144,24 +134,8 @@ export function useAuth(): UseAuthReturn {
           // Redirect to login page
           router.push("/auth/login");
         } else {
-          // If no verification needed, get session from Supabase and set it
-          const { data: sessionData } = await supabase.auth.getSession();
-
-          if (sessionData?.session && sessionData.session.user?.email) {
-            const compatibleSession = {
-              access_token: sessionData.session.access_token,
-              refresh_token: sessionData.session.refresh_token,
-              user: {
-                id: sessionData.session.user.id,
-                email: sessionData.session.user.email,
-              },
-              expires_at:
-                sessionData.session.expires_at || Date.now() / 1000 + 3600,
-            };
-
-            await setSession(compatibleSession);
-          }
-
+          // If no verification needed, session should already be set by Supabase auth listener
+          // No need to manually get and set session here
           toast({
             title: "Welcome to Hivedemia!",
             description: "Your account has been created successfully.",

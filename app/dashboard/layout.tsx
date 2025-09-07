@@ -64,8 +64,24 @@ export default function DashboardLayout({
   };
 
   const handleLogout = async () => {
-    await logout();
-    // The AuthGuard will handle the redirect to login page
+    try {
+      console.log("🔄 Starting logout from dashboard...");
+
+      // Call logout function
+      await logout();
+
+      // Wait a moment for state to propagate
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      console.log("✅ Logout successful, redirecting to login...");
+
+      // Force redirect to login page
+      window.location.href = "/auth/login";
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Force redirect even if logout fails
+      window.location.href = "/auth/login";
+    }
   };
 
   const confirmLogout = () => {
@@ -77,8 +93,8 @@ export default function DashboardLayout({
   };
 
   const proceedLogout = async () => {
-    setShowLogoutConfirm(false);
     await handleLogout();
+    setShowLogoutConfirm(false);
   };
 
   // Get user info from session

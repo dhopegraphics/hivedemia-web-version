@@ -56,11 +56,25 @@ export class AuthService {
         };
       }
 
-      // Attempt to sign in
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Attempt to sign in with timeout
+      console.log("🔄 Attempting to sign in with Supabase...");
+
+      const signInPromise = supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Sign in timeout - please try again")),
+          10000
+        )
+      );
+
+      const { data, error } = await Promise.race([
+        signInPromise,
+        timeoutPromise,
+      ]);
 
       if (error) {
         // Handle specific error cases

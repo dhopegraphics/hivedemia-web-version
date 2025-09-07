@@ -12,6 +12,7 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -40,6 +41,7 @@ export default function SignUpPage() {
       email: formData.email,
       password: formData.password,
       fullName: formData.name,
+      username: formData.username,
     });
   };
 
@@ -60,43 +62,49 @@ export default function SignUpPage() {
 
   return (
     <AuthGuard requireAuth={false} redirectTo="/dashboard">
-      <div className="min-h-screen bg-light dark:bg-dark flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center animate-fade-in-scale">
             <Link
               href="/"
-              className="inline-flex items-center text-primary hover:text-primary-dark transition-colors mb-6"
+              className="inline-flex items-center text-purple-600 hover:text-purple-700 transition-colors mb-8 font-medium"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Home
             </Link>
-            <h2 className="text-3xl font-bold text-dark dark:text-white">
-              Join Hivedemia
-            </h2>
-            <p className="mt-2 text-gray dark:text-light-gray">
-              Create your account and start your learning journey
-            </p>
+
+            <div className="mb-8">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-2">
+                Join Hivedemia
+              </h2>
+              <p className="text-gray-600 text-lg">
+                Create your account and start learning today
+              </p>
+            </div>
           </div>
 
-          <div className="bg-white dark:bg-dark-light rounded-xl shadow-card p-8 animate-slide-up">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 animate-slide-up backdrop-blur-sm">
             {(error || passwordError) && (
-              <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-red-600 dark:text-red-400 text-sm">
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-red-700 text-sm font-medium">
                   {error || passwordError}
                 </p>
               </div>
             )}
 
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div>
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-1">
                 <label
                   htmlFor="name"
-                  className="block text-sm font-medium text-dark dark:text-white mb-2"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
                 >
                   Full Name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     id="name"
                     name="name"
@@ -104,21 +112,43 @@ export default function SignUpPage() {
                     required
                     value={formData.name}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-light-gray dark:border-dark-light rounded-lg bg-light dark:bg-dark text-dark dark:text-white placeholder-gray focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent focus:bg-white transition-all duration-200"
                     placeholder="Enter your full name"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-1">
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
+                >
+                  Username
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    value={formData.username}
+                    onChange={handleChange}
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent focus:bg-white transition-all duration-200"
+                    placeholder="Choose a unique username"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-dark dark:text-white mb-2"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
                 >
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     id="email"
                     name="email"
@@ -126,21 +156,21 @@ export default function SignUpPage() {
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-light-gray dark:border-dark-light rounded-lg bg-light dark:bg-dark text-dark dark:text-white placeholder-gray focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    placeholder="Enter your email"
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent focus:bg-white transition-all duration-200"
+                    placeholder="Enter your email address"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-1">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-dark dark:text-white mb-2"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
                 >
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     id="password"
                     name="password"
@@ -148,13 +178,13 @@ export default function SignUpPage() {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-12 py-3 border border-light-gray dark:border-dark-light rounded-lg bg-light dark:bg-dark text-dark dark:text-white placeholder-gray focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    placeholder="Create a password"
+                    className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent focus:bg-white transition-all duration-200"
+                    placeholder="Create a strong password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray hover:text-primary transition-colors"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-500 transition-colors"
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5" />
@@ -163,17 +193,20 @@ export default function SignUpPage() {
                     )}
                   </button>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Must be at least 8 characters long
+                </p>
               </div>
 
-              <div>
+              <div className="space-y-1">
                 <label
                   htmlFor="confirmPassword"
-                  className="block text-sm font-medium text-dark dark:text-white mb-2"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
                 >
                   Confirm Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     id="confirmPassword"
                     name="confirmPassword"
@@ -181,7 +214,7 @@ export default function SignUpPage() {
                     required
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-light-gray dark:border-dark-light rounded-lg bg-light dark:bg-dark text-dark dark:text-white placeholder-gray focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent focus:bg-white transition-all duration-200"
                     placeholder="Confirm your password"
                   />
                 </div>
@@ -190,22 +223,40 @@ export default function SignUpPage() {
               <button
                 type="submit"
                 disabled={isSigningUp}
-                className="w-full gradient-primary text-white py-3 px-4 rounded-lg font-semibold hover:shadow-glow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white py-3 px-4 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98] mt-6"
               >
-                {isSigningUp ? "Creating Account..." : "Create Account"}
+                {isSigningUp ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Creating Account...
+                  </>
+                ) : (
+                  <>
+                    <User className="h-5 w-5 mr-2" />
+                    Create Account
+                  </>
+                )}
               </button>
             </form>
 
-            <div className="mt-6 text-center">
-              <p className="text-gray dark:text-light-gray">
-                Already have an account?{" "}
-                <Link
-                  href="/auth/login"
-                  className="text-primary hover:text-primary-dark font-medium transition-colors"
-                >
-                  Sign in
-                </Link>
-              </p>
+            <div className="mt-8 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-gray-500 font-medium">
+                    Already have an account?
+                  </span>
+                </div>
+              </div>
+              <Link
+                href="/auth/login"
+                className="mt-4 inline-flex items-center px-6 py-2 border border-purple-500 text-purple-600 font-semibold rounded-lg hover:bg-purple-50 transition-all duration-200 transform hover:scale-105"
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Sign In Instead
+              </Link>
             </div>
           </div>
         </div>
