@@ -1,4 +1,6 @@
+"use client";
 import { useAuthStore } from "@/backend/store/authStore";
+
 import { AsyncStorage } from "@/utils/browserStorage";
 import React, {
   createContext,

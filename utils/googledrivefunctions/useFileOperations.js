@@ -2,7 +2,6 @@
 // Converted from React Native to work with Next.js web environment
 
 import { useCourseStore } from "@/backend/store/useCourseStore";
-import { useUserStore } from "@/backend/store/useUserStore";
 import { supabase } from "@/backend/supabase";
 import { useToast } from "@/context/ToastContext";
 import { useSubscriptionManager } from "@/hooks/useSubscriptionManager";
@@ -10,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { allowedExtensions } from "../AllowedExtensions";
-import { downloadAndCachePdf } from "../downloadAndCachePdf";
+import { downloadAndCachePdf } from "./downloadAndCachePdf";
 import { googleDriveAPI } from "./googleDriveAPI";
 
 // Web Storage utility to replace AsyncStorage
@@ -297,24 +296,24 @@ export const useFileOperations = ({ id, setFiles, courseTitle }) => {
       // Get username
       let username = "user";
       try {
-        const userProfile = useUserStore.getState().profile;
-        if (userProfile) {
-          username =
-            userProfile.username ||
-            userProfile.full_name?.replace(/\s+/g, "_") ||
-            userProfile.email?.split("@")[0] ||
-            "user";
-        } else if (userData.user?.user_metadata?.username) {
+        // Get user data from Supabase auth which has more metadata
+        if (userData.user?.user_metadata?.username) {
           username = userData.user.user_metadata.username;
+        } else if (userData.user?.user_metadata?.full_name) {
+          username = userData.user.user_metadata.full_name.replace(/\s+/g, "_");
         } else if (userData.user?.email) {
           username = userData.user.email.split("@")[0];
         }
+
+        // Clean username to be safe for file paths
+        username = username.replace(/[^a-zA-Z0-9_-]/g, "_");
       } catch (profileError) {
-        console.warn("Error accessing local profile:", profileError);
-        if (userData.user?.user_metadata?.username) {
-          username = userData.user.user_metadata.username;
-        } else if (userData.user?.email) {
-          username = userData.user.email.split("@")[0];
+        console.warn("Error accessing user metadata:", profileError);
+        // Fallback to email-based username
+        if (userData.user?.email) {
+          username = userData.user.email
+            .split("@")[0]
+            .replace(/[^a-zA-Z0-9_-]/g, "_");
         }
       }
 
