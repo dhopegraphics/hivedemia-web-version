@@ -17,6 +17,7 @@ import CourseDetail from "./CourseDetail";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import BulkDeleteOverlay from "./BulkDeleteOverlay";
+import { CourseDetailDebugger } from "@/components/debug/CourseDetailDebugger";
 
 const initialState: StudyPlaceState = {
   courses: [],
@@ -143,7 +144,16 @@ export default function StudyPlace() {
       }
       dispatch({ type: "SET_SELECTED_COURSES", payload: newSelected });
     } else {
-      dispatch({ type: "SET_SHOW_COURSE_DETAIL", payload: courseId });
+      try {
+        console.log("Opening course detail for:", courseId);
+        dispatch({ type: "SET_SHOW_COURSE_DETAIL", payload: courseId });
+      } catch (error) {
+        console.error("Error opening course detail:", error);
+        dispatch({
+          type: "SET_ERROR",
+          payload: "Failed to open course details",
+        });
+      }
     }
   };
 
@@ -296,9 +306,17 @@ export default function StudyPlace() {
               });
             }}
             onDelete={async () => {
-              const success = await deleteCoursesBulk([selectedCourse.id]);
-              if (success) {
-                dispatch({ type: "SET_SHOW_COURSE_DETAIL", payload: null });
+              try {
+                const success = await deleteCoursesBulk([selectedCourse.id]);
+                if (success) {
+                  dispatch({ type: "SET_SHOW_COURSE_DETAIL", payload: null });
+                }
+              } catch (error) {
+                console.error("Failed to delete course:", error);
+                dispatch({
+                  type: "SET_ERROR",
+                  payload: "Failed to delete course",
+                });
               }
             }}
             onFileCountUpdate={(courseId, newCount) => {
@@ -306,6 +324,12 @@ export default function StudyPlace() {
             }}
           />
         )}
+
+        {/* Debug Component - Remove this after troubleshooting */}
+        <CourseDetailDebugger
+          courseId={state.showCourseDetail || ""}
+          isOpen={!!state.showCourseDetail}
+        />
 
         {/* Bulk Delete Overlay */}
         <BulkDeleteOverlay

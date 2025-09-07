@@ -93,7 +93,9 @@ class GoogleDriveAPI {
         createFolders: true, // Flag to create folders if they don't exist
       };
 
-      // Upload via Google Apps Script proxy
+      console.log(`Uploading ${fileName} to Google Drive...`);
+
+      // Upload via Google Apps Script proxy with better error handling
       const response = await fetch(GOOGLE_DRIVE_CONFIG.APPS_SCRIPT_URL, {
         method: "POST",
         headers: {
@@ -102,20 +104,48 @@ class GoogleDriveAPI {
         body: JSON.stringify(uploadData),
       });
 
+      // Enhanced error handling for CORS and other issues
       if (!response.ok) {
-        const errorText = await response.text();
+        let errorText;
+        try {
+          errorText = await response.text();
+        } catch (textError) {
+          errorText = `HTTP ${response.status} - ${response.statusText}`;
+        }
+
+        // Check for CORS issues
+        if (response.status === 0 || errorText.includes("CORS")) {
+          throw new Error(
+            `CORS Error: ${errorText}\n\nPlease check:\n1. Google Apps Script is deployed with "Anyone" access\n2. Script includes proper CORS headers\n3. URL is correct in environment variables`
+          );
+        }
+
         throw new Error(`Upload failed: ${response.status} - ${errorText}`);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        throw new Error(`Invalid response from server: ${parseError.message}`);
+      }
 
       if (result.error) {
         throw new Error(`Upload failed: ${result.error}`);
       }
 
+      console.log(`Successfully uploaded ${fileName} to Google Drive`);
       return result;
     } catch (error) {
       console.error("Error uploading file to Google Drive:", error);
+
+      // Enhanced error reporting
+      if (error.message.includes("Failed to fetch")) {
+        throw new Error(
+          `Network error: Failed to connect to Google Apps Script.\n\nPossible causes:\n1. CORS policy blocking the request\n2. Google Apps Script URL is incorrect\n3. Script is not deployed properly\n4. Network connectivity issues\n\nPlease check the deployment guide and ensure your Google Apps Script is set up correctly.`
+        );
+      }
+
       throw error;
     }
   }

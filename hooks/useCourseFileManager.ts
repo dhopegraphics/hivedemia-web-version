@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useFileOperations } from "@/utils/googledrivefunctions/useFileOperations";
 import { useLoadFiles } from "@/utils/googledrivefunctions/useLoadFiles";
 
@@ -35,12 +35,15 @@ export const useCourseFileManager = (
   const [files, setFiles] = useState<CourseFile[]>([]);
 
   // Enhanced setFiles that notifies parent of count changes
-  const setFilesWithCallback = (newFiles: CourseFile[]) => {
-    setFiles(newFiles);
-    if (onFileCountChange) {
-      onFileCountChange(newFiles.length);
-    }
-  };
+  const setFilesWithCallback = useCallback(
+    (newFiles: CourseFile[]) => {
+      setFiles(newFiles);
+      if (onFileCountChange) {
+        onFileCountChange(newFiles.length);
+      }
+    },
+    [onFileCountChange]
+  );
 
   // Use file operations hook
   const fileOps = useFileOperations({
@@ -56,13 +59,13 @@ export const useCourseFileManager = (
   });
 
   // Manual refresh function
-  const refreshFiles = () => {
+  const refreshFiles = useCallback(() => {
     // Force reload by clearing cache and reloading
     if (typeof window !== "undefined") {
       localStorage.removeItem(`course-files-${courseId}`);
     }
     // The useLoadFiles hook will automatically reload
-  };
+  }, [courseId]);
 
   return {
     files,
