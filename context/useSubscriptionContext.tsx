@@ -1,6 +1,5 @@
 import { useAuthStore } from "@/backend/store/authStore";
 import HubtelCheckoutWebView from "@/components/Subscription/HubtelCheckoutWebView";
-import HubtelDirectDebitSetup from "@/components/Subscription/HubtelDirectDebitSetup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
@@ -221,122 +220,140 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
   };
 
   // Load subscription plans from cache first, then sync
-  const loadSubscriptionPlans = useCallback(async (triggerOnlineSync = false) => {
-    try {
-      // Always load from cache first for instant display
-      const { plans } = await getCachedData();
-      if (plans.length > 0) {
-        setSubscriptionPlans(plans);
-      }
-
-      // If explicitly asked or if no cached plans, trigger online sync
-      if (triggerOnlineSync || plans.length === 0) {
-        try {
-          const { data, error } = await supabase
-            .from("subscription_plans")
-            .select("*")
-            .eq("is_active", true)
-            .order("price", { ascending: true });
-
-          if (error) throw error;
-
-          const freshPlans: SubscriptionPlan[] = data.map((plan) => ({
-            id: plan.id,
-            name: plan.name,
-            price: plan.price,
-            duration: plan.duration_days,
-            features: plan.features,
-            description: plan.description,
-            isPopular: plan.is_popular,
-          }));
-
-          // Only update if data changed
-          if (JSON.stringify(freshPlans) !== JSON.stringify(plans)) {
-            setSubscriptionPlans(freshPlans);
-            await saveCachedData(null, freshPlans);
-          }
-        } catch (error) {
-          console.warn("❌ Background sync of subscription plans failed:", error);
-          // Ignore network errors for background sync
+  const loadSubscriptionPlans = useCallback(
+    async (triggerOnlineSync = false) => {
+      try {
+        // Always load from cache first for instant display
+        const { plans } = await getCachedData();
+        if (plans.length > 0) {
+          setSubscriptionPlans(plans);
         }
+
+        // If explicitly asked or if no cached plans, trigger online sync
+        if (triggerOnlineSync || plans.length === 0) {
+          try {
+            const { data, error } = await supabase
+              .from("subscription_plans")
+              .select("*")
+              .eq("is_active", true)
+              .order("price", { ascending: true });
+
+            if (error) throw error;
+
+            const freshPlans: SubscriptionPlan[] = data.map((plan) => ({
+              id: plan.id,
+              name: plan.name,
+              price: plan.price,
+              duration: plan.duration_days,
+              features: plan.features,
+              description: plan.description,
+              isPopular: plan.is_popular,
+            }));
+
+            // Only update if data changed
+            if (JSON.stringify(freshPlans) !== JSON.stringify(plans)) {
+              setSubscriptionPlans(freshPlans);
+              await saveCachedData(null, freshPlans);
+            }
+          } catch (error) {
+            console.warn(
+              "❌ Background sync of subscription plans failed:",
+              error
+            );
+            // Ignore network errors for background sync
+          }
+        }
+      } catch (error) {
+        console.error("❌ Failed to load subscription plans:", error);
       }
-    } catch (error) {
-      console.error("❌ Failed to load subscription plans:", error);
-    }
-  }, []);
+    },
+    []
+  );
 
   // Load user subscription - try online first on initial mount, fallback to cache
-  const loadUserSubscription = useCallback(async (triggerOnlineSync = false) => {
-    try {
-      const currentUser = useAuthStore.getState().user;
+  const loadUserSubscription = useCallback(
+    async (triggerOnlineSync = false) => {
+      try {
+        const currentUser = useAuthStore.getState().user;
 
-      if (!currentUser) {
-        setCurrentSubscription(null);
-        return;
-      }
+        if (!currentUser) {
+          setCurrentSubscription(null);
+          return;
+        }
 
-      // Always load from cache first for instant display
-      const { subscription, userId } = await getCachedData();
-      if (subscription && userId === currentUser.id) {
-        setCurrentSubscription(subscription);
-      } else if (subscription && userId !== currentUser.id) {
-        // Different user - clear cache
-        await clearCachedData();
-        setCurrentSubscription(null);
-      }
+        // Always load from cache first for instant display
+        const { subscription, userId } = await getCachedData();
+        if (subscription && userId === currentUser.id) {
+          setCurrentSubscription(subscription);
+        } else if (subscription && userId !== currentUser.id) {
+          // Different user - clear cache
+          await clearCachedData();
+          setCurrentSubscription(null);
+        }
 
-      // If explicitly asked or if no cached subscription, trigger online sync
-      if (triggerOnlineSync || !subscription) {
-        try {
-          const { data, error } = await supabase
-            .from("user_subscriptions")
-            .select(
-              `
+        // If explicitly asked or if no cached subscription, trigger online sync
+        if (triggerOnlineSync || !subscription) {
+          try {
+            const { data, error } = await supabase
+              .from("user_subscriptions")
+              .select(
+                `
               *,
               subscription_plans(*)
             `
-            )
-            .eq("user_id", currentUser.id)
-            .eq("status", "active")
-            .single();
+              )
+              .eq("user_id", currentUser.id)
+              .eq("status", "active")
+              .single();
 
-          if (error && error.code !== "PGRST116") {
-            throw error;
-          }
-
-          if (data) {
-            const freshSubscription: UserSubscription = {
-              id: data.id,
-              planId: data.plan_id,
-              startDate: data.start_date,
-              endDate: data.end_date,
-              isActive: data.status === "active",
-              autoRenew: data.auto_renew,
-              paymentMethod: data.payment_method,
-              transactionId: data.transaction_id,
-              userId: currentUser.id,
-            };
-
-            // Only update if data changed
-            if (
-              JSON.stringify(freshSubscription) !== JSON.stringify(subscription)
-            ) {
-              setCurrentSubscription(freshSubscription);
-              await saveCachedData(freshSubscription, undefined, currentUser.id);
+            if (error && error.code !== "PGRST116") {
+              throw error;
             }
-          } else if (subscription) { // If there was a cached subscription but no online one, clear it
-            setCurrentSubscription(null);
-            await saveCachedData(null, undefined, currentUser.id);
+
+            if (data) {
+              const freshSubscription: UserSubscription = {
+                id: data.id,
+                planId: data.plan_id,
+                startDate: data.start_date,
+                endDate: data.end_date,
+                isActive: data.status === "active",
+                autoRenew: data.auto_renew,
+                paymentMethod: data.payment_method,
+                transactionId: data.transaction_id,
+                userId: currentUser.id,
+              };
+
+              // Only update if data changed
+              if (
+                JSON.stringify(freshSubscription) !==
+                JSON.stringify(subscription)
+              ) {
+                setCurrentSubscription(freshSubscription);
+                await saveCachedData(
+                  freshSubscription,
+                  undefined,
+                  currentUser.id
+                );
+              }
+            } else if (subscription) {
+              // If there was a cached subscription but no online one, clear it
+              setCurrentSubscription(null);
+              await saveCachedData(null, undefined, currentUser.id);
+            }
+          } catch (error) {
+            console.warn(
+              "❌ Background sync of user subscription failed:",
+              error
+            );
+            // Ignore network errors for background sync
           }
-        } catch (error) {
-          console.warn("❌ Background sync of user subscription failed:", error);
-          // Ignore network errors for background sync
         }
+      } catch (error) {
+        console.error("❌ Failed to load user subscription:", error);
       }
-    } catch (error) {
-      console.error("❌ Failed to load user subscription:", error);
-    }
-  }, []);
+    },
+    []
+  );
 
   // Background sync function
   const syncSubscriptionData = useCallback(async () => {
@@ -1215,28 +1232,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({
   return (
     <SubscriptionContext.Provider value={value}>
       {children}
-      {showDirectDebitSetup && (
-        <HubtelDirectDebitSetup
-          phone={pendingPhone || ""}
-          onSuccess={() => {
-            setShowDirectDebitSetup(false);
-            setPendingPhone(null);
-            Alert.alert(
-              "Success",
-              "Direct debit setup complete. Your subscription will now automatically renew."
-            );
-          }}
-          onError={(error) => {
-            setShowDirectDebitSetup(false);
-            setPendingPhone(null);
-            Alert.alert("Error", error);
-          }}
-          onCancel={() => {
-            setShowDirectDebitSetup(false);
-            setPendingPhone(null);
-          }}
-        />
-      )}
+
       {showWebView && paymentUrl && (
         <HubtelCheckoutWebView
           visible={showWebView}

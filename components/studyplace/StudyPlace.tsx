@@ -4,14 +4,8 @@ import {
   StudyPlaceState,
   StudyPlaceAction,
 } from "@/types/StudyPlaceTypes";
-import {
-  createCourse,
-  updateCourse,
-  filterCourses,
-  simulateFileUpload,
-  simulateBulkDelete,
-} from "@/utils/studyplace/courseUtils";
-import { generateMockCourses } from "@/utils/studyplace/helpers";
+import { filterCourses } from "@/utils/studyplace/courseUtils";
+import { useIntegratedCourseManager } from "@/hooks/useIntegratedCourseManager";
 
 // Components
 import StudyPlaceHeader from "./StudyPlaceHeader";
@@ -80,22 +74,34 @@ function studyPlaceReducer(
 export default function StudyPlace() {
   const [state, dispatch] = useReducer(studyPlaceReducer, initialState);
 
-  // Load initial data
+  // Use integrated course manager
+  const {
+    courses: managedCourses,
+    isLoading: managerLoading,
+    error: managerError,
+    createNewCourse,
+    updateExistingCourse,
+    deleteCoursesBulk,
+    updateCourseFileCount,
+  } = useIntegratedCourseManager();
+
+  // Update state when managed courses change
   useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const mockCourses = generateMockCourses();
-        dispatch({ type: "SET_COURSES", payload: mockCourses });
-        dispatch({ type: "SET_FILTERED_COURSES", payload: mockCourses });
-      } catch {
-        dispatch({ type: "SET_ERROR", payload: "Failed to load courses" });
-        dispatch({ type: "SET_LOADING", payload: false });
-      }
-    };
-    loadCourses();
-  }, []);
+    if (managedCourses.length > 0) {
+      dispatch({ type: "SET_COURSES", payload: managedCourses });
+    }
+  }, [managedCourses]);
+
+  // Update loading and error states
+  useEffect(() => {
+    dispatch({ type: "SET_LOADING", payload: managerLoading });
+  }, [managerLoading]);
+
+  useEffect(() => {
+    if (managerError) {
+      dispatch({ type: "SET_ERROR", payload: managerError });
+    }
+  }, [managerError]);
 
   // Filter courses when search query changes
   useEffect(() => {
@@ -110,9 +116,7 @@ export default function StudyPlace() {
 
   const handleCreateCourse = async (formData: CourseFormData) => {
     try {
-      const newCourse = await createCourse(formData);
-      const updatedCourses = [...state.courses, newCourse];
-      dispatch({ type: "SET_COURSES", payload: updatedCourses });
+      await createNewCourse(formData);
       dispatch({ type: "SET_SHOW_CREATE_FORM", payload: false });
     } catch (error) {
       console.error("Failed to create course:", error);
@@ -122,16 +126,7 @@ export default function StudyPlace() {
   const handleUpdateCourse = async (formData: CourseFormData) => {
     if (!state.showEditForm) return;
     try {
-      const existingCourse = state.courses.find(
-        (c) => c.id === state.showEditForm
-      );
-      if (!existingCourse) return;
-
-      const updatedCourse = updateCourse(existingCourse, formData);
-      const updatedCourses = state.courses.map((course) =>
-        course.id === state.showEditForm ? updatedCourse : course
-      );
-      dispatch({ type: "SET_COURSES", payload: updatedCourses });
+      await updateExistingCourse(state.showEditForm, formData);
       dispatch({ type: "SET_SHOW_EDIT_FORM", payload: null });
     } catch (error) {
       console.error("Failed to update course:", error);
@@ -164,59 +159,17 @@ export default function StudyPlace() {
   const handleBulkDelete = async () => {
     dispatch({ type: "SET_DELETING_BULK", payload: true });
     try {
-      await simulateBulkDelete(
-        Array.from(state.selectedCourses),
-        () => {}, // onProgress
-        (deletedIds) => {
-          // onComplete
-          const remainingCourses = state.courses.filter(
-            (course) => !deletedIds.includes(course.id)
-          );
-          dispatch({ type: "SET_COURSES", payload: remainingCourses });
-          dispatch({ type: "SET_SELECTED_COURSES", payload: new Set() });
-          dispatch({ type: "SET_SELECTION_MODE", payload: false });
-        }
-      );
+      const selectedIds = Array.from(state.selectedCourses);
+      const success = await deleteCoursesBulk(selectedIds);
+
+      if (success) {
+        dispatch({ type: "SET_SELECTED_COURSES", payload: new Set() });
+        dispatch({ type: "SET_SELECTION_MODE", payload: false });
+      }
     } catch (error) {
       console.error("Failed to delete courses:", error);
     } finally {
       dispatch({ type: "SET_DELETING_BULK", payload: false });
-    }
-  };
-
-  const handleFileUpload = async (courseId: string, files: FileList) => {
-    const newUploadingFiles = new Set(state.uploadingFiles);
-    newUploadingFiles.add(courseId);
-    dispatch({ type: "SET_UPLOADING_FILES", payload: newUploadingFiles });
-
-    try {
-      await simulateFileUpload(
-        courseId,
-        files.length,
-        () => {}, // onProgress
-        (id, count) => {
-          // onComplete
-          // Update course documents count
-          const updatedCourses = state.courses.map((course) =>
-            course.id === id
-              ? { ...course, documentsCount: course.documentsCount + count }
-              : course
-          );
-          dispatch({ type: "SET_COURSES", payload: updatedCourses });
-
-          // Remove from uploading set
-          const updatedUploadingFiles = new Set(state.uploadingFiles);
-          updatedUploadingFiles.delete(id);
-          dispatch({
-            type: "SET_UPLOADING_FILES",
-            payload: updatedUploadingFiles,
-          });
-        }
-      );
-    } catch (error) {
-      console.error("Failed to upload files:", error);
-      newUploadingFiles.delete(courseId);
-      dispatch({ type: "SET_UPLOADING_FILES", payload: newUploadingFiles });
     }
   };
 
@@ -343,15 +296,14 @@ export default function StudyPlace() {
               });
             }}
             onDelete={async () => {
-              const updatedCourses = state.courses.filter(
-                (c) => c.id !== selectedCourse.id
-              );
-              dispatch({ type: "SET_COURSES", payload: updatedCourses });
-              dispatch({ type: "SET_SHOW_COURSE_DETAIL", payload: null });
+              const success = await deleteCoursesBulk([selectedCourse.id]);
+              if (success) {
+                dispatch({ type: "SET_SHOW_COURSE_DETAIL", payload: null });
+              }
             }}
-            onUploadFiles={(files) =>
-              handleFileUpload(selectedCourse.id, files)
-            }
+            onFileCountUpdate={(courseId, newCount) => {
+              updateCourseFileCount(courseId, newCount);
+            }}
           />
         )}
 

@@ -8,9 +8,12 @@ import {
   Edit,
   Trash2,
   Plus,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import { Course } from "@/types/StudyPlaceTypes";
 import { getIconComponent } from "@/utils/studyplace/helpers";
+import { useCourseFileManager } from "@/hooks/useCourseFileManager";
 
 interface CourseDetailProps {
   course: Course;
@@ -18,7 +21,8 @@ interface CourseDetailProps {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onUploadFiles: (files: FileList) => void;
+  onUploadFiles?: (files: FileList) => void; // Made optional since we'll use the file manager
+  onFileCountUpdate?: (courseId: string, newCount: number) => void;
 }
 
 export default function CourseDetail({
@@ -27,10 +31,22 @@ export default function CourseDetail({
   onClose,
   onEdit,
   onDelete,
-  onUploadFiles,
+  onFileCountUpdate,
 }: CourseDetailProps) {
   const [isDragging, setIsDragging] = useState(false);
   const IconComponent = getIconComponent(course.icon);
+
+  // Use the integrated file manager for this course
+  const fileManager = useCourseFileManager(
+    course.id,
+    course.title,
+    (newCount) => {
+      // Notify parent component of file count changes
+      if (onFileCountUpdate) {
+        onFileCountUpdate(course.id, newCount);
+      }
+    }
+  );
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -45,17 +61,8 @@ export default function CourseDetail({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      onUploadFiles(files);
-    }
-  };
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      onUploadFiles(files);
-    }
+    // For drag and drop, we'll just trigger the file manager's upload
+    fileManager.handleFileUpload();
   };
 
   if (!isOpen) return null;
@@ -123,7 +130,7 @@ export default function CourseDetail({
                 <FileText className="h-6 w-6 text-blue-600" />
               </div>
               <p className="text-2xl font-bold text-text-primary">
-                {course.documentsCount}
+                {fileManager.files.length}
               </p>
               <p className="text-sm text-text-secondary">Documents</p>
             </div>
@@ -142,16 +149,49 @@ export default function CourseDetail({
               <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-2">
                 <Upload className="h-6 w-6 text-purple-600" />
               </div>
-              <p className="text-sm font-medium text-text-primary">Ready for</p>
-              <p className="text-sm text-text-secondary">Upload</p>
+              <p className="text-sm font-medium text-text-primary">
+                {fileManager.uploading ? "Uploading" : "Ready for"}
+              </p>
+              <p className="text-sm text-text-secondary">
+                {fileManager.uploading
+                  ? `${fileManager.uploadProgress}%`
+                  : "Upload"}
+              </p>
             </div>
           </div>
 
           {/* File Upload Area */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-text-primary mb-4">
-              Upload Files
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-text-primary">
+                Upload Files
+              </h2>
+              {fileManager.uploading && (
+                <div className="text-sm text-blue-600">
+                  {fileManager.progressMode === "upload"
+                    ? "Uploading..."
+                    : "Processing..."}
+                </div>
+              )}
+            </div>
+
+            {/* Upload Progress */}
+            {fileManager.uploading && (
+              <div className="mb-4">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${fileManager.uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  {fileManager.progressMode === "upload"
+                    ? "Uploading files..."
+                    : "Processing..."}
+                </p>
+              </div>
+            )}
+
             <div
               className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
                 isDragging
@@ -164,48 +204,100 @@ export default function CourseDetail({
             >
               <Upload className="h-12 w-12 text-text-tertiary mx-auto mb-4" />
               <h3 className="text-lg font-medium text-text-primary mb-2">
-                Drag and drop files here
+                {fileManager.isPickingDocument
+                  ? "Selecting files..."
+                  : "Drag and drop files here"}
               </h3>
               <p className="text-text-secondary mb-4">
                 or click to browse from your computer
               </p>
-              <label className="inline-flex items-center space-x-2 bg-primary text-white px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors cursor-pointer">
+              <button
+                onClick={fileManager.handleFileUpload}
+                disabled={
+                  fileManager.uploading || fileManager.isPickingDocument
+                }
+                className="inline-flex items-center space-x-2 bg-primary text-white px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Plus className="h-4 w-4" />
-                <span>Choose Files</span>
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileInputChange}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                />
-              </label>
+                <span>
+                  {fileManager.uploading
+                    ? `Uploading... ${fileManager.uploadProgress}%`
+                    : fileManager.isPickingDocument
+                    ? "Selecting Files..."
+                    : "Choose Files"}
+                </span>
+              </button>
             </div>
           </div>
 
           {/* Recent Files */}
           <div>
-            <h2 className="text-lg font-semibold text-text-primary mb-4">
-              Recent Files
-            </h2>
-            {course.files && course.files.length > 0 ? (
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-text-primary">
+                Course Files ({fileManager.files.length})
+              </h2>
+              <button
+                onClick={fileManager.refreshFiles}
+                className="text-sm text-primary hover:text-primary/80 underline"
+              >
+                Refresh
+              </button>
+            </div>
+            {fileManager.files.length > 0 ? (
               <div className="space-y-3">
-                {course.files.map((file, index) => (
+                {fileManager.files.map((file) => (
                   <div
-                    key={index}
+                    key={file.id}
                     className="flex items-center space-x-3 p-4 bg-surface-light rounded-xl hover:bg-border-light transition-colors"
                   >
-                    <FileText className="h-8 w-8 text-primary" />
-                    <div className="flex-1">
-                      <p className="font-medium text-text-primary">
+                    <FileText className="h-8 w-8 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate">
                         {file.name}
                       </p>
-                      <p className="text-sm text-text-secondary">
-                        {(file.size / 1024 / 1024).toFixed(1)} MB
-                      </p>
+                      <div className="flex items-center space-x-4 mt-1">
+                        <p className="text-sm text-text-secondary">
+                          {file.size}
+                        </p>
+                        <p className="text-sm text-text-secondary">
+                          Type: {file.type}
+                        </p>
+                        <p className="text-sm text-text-tertiary">
+                          {file.date}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-sm text-text-tertiary">
-                      {new Date().toLocaleDateString()}
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      {file.url && file.url !== "not defined" && (
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="View file"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
+                      {file.url && file.url !== "not defined" && (
+                        <a
+                          href={file.url}
+                          download={file.name}
+                          className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Download file"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() =>
+                          fileManager.handleFileDelete(file.id, file.filePath)
+                        }
+                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete file"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -214,6 +306,9 @@ export default function CourseDetail({
               <div className="text-center py-8 text-text-secondary">
                 <FileText className="h-12 w-12 mx-auto mb-2 text-text-tertiary" />
                 <p>No files uploaded yet</p>
+                <p className="text-sm mt-1">
+                  Upload files using the area above
+                </p>
               </div>
             )}
           </div>

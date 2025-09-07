@@ -2,15 +2,7 @@
 import { dbManager } from "@/backend/services/DatabaseManager";
 import { supabase } from "@/backend/supabase";
 import { create } from "zustand";
-
-// Web-compatible UUID utility
-const generateUUID = () => {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
+import { v4 as uuidv4 } from "uuid";
 
 export const useCourseStore = create((set, get) => ({
   courses: [],
@@ -82,7 +74,7 @@ export const useCourseStore = create((set, get) => ({
 
   addLocalCourse: async (course) => {
     try {
-      const newId = generateUUID();
+      const newId = uuidv4();
       const newCourse = {
         id: newId,
         createdby: course.createdby,
@@ -186,6 +178,47 @@ export const useCourseStore = create((set, get) => ({
     } catch (err) {
       console.error("Failed to get course by ID:", err);
       return null;
+    }
+  },
+
+  deleteCourses: async (courseIds) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      // Delete from local IndexedDB
+      await dbManager.executeWithRetry("courses.db", async (db) => {
+        for (const courseId of courseIds) {
+          await db.deleteAsync("courses", courseId);
+        }
+      });
+
+      // Delete from Supabase
+      const { error: supabaseError } = await supabase
+        .from("course")
+        .delete()
+        .in("id", courseIds)
+        .eq("createdby", user.id);
+
+      if (supabaseError) {
+        console.warn("Failed to delete from Supabase:", supabaseError.message);
+      }
+
+      // Update local state
+      set((state) => ({
+        courses: state.courses.filter(
+          (course) => !courseIds.includes(course.id)
+        ),
+      }));
+
+      return true;
+    } catch (err) {
+      console.error("Failed to delete courses:", err);
+      return false;
     }
   },
   syncFromSupabaseToLocal: async () => {
